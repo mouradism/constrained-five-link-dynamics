@@ -1,0 +1,85 @@
+\documentclass[../main.tex]{subfiles}
+\begin{document}
+\chapter{Verification and Validation}
+\label{chap:verification}
+
+\section{State of the Art}
+Verification asks whether a computational model and its implementation correctly solve the equations they claim to solve; validation asks whether those equations adequately represent the physical system for an intended use. Both require documented evidence, but they answer different questions. A general treatment of verification and validation in scientific computing is given by Oberkampf and Roy \cite{oberkampfroy2010}; reproducible computational research also depends on recording data, code, parameters, and software context \cite{sandve2013reproducible}. This focused review uses these foundational sources, checked 2026-10-07; it is a practical checklist, not a survey of domain-specific experimental standards.
+
+\section{Verification layers}
+\subsection{Symbolic and equation checks}
+Before numerical integration, verify coordinate order, dimensions, force signs, and constraint row order. For the five-link model, the symbolic residual vector includes ten pin equations and three fixed-pose equations. Differentiation produces \(J=\partial\Phi/\partial q\) and the acceleration bias \(\dot J\dot q\). These expressions are evaluated at a common state and compared against the independent numerical implementation. The symbolic ideal acceleration constraint and force-balance residuals should simplify or evaluate to zero within arithmetic precision.
+
+The notebook applies these checks in this order:
+\begin{enumerate}
+\item Keep $m_i,I_i,L_i,g$ symbolic while constructing $T,V,\Phi,J$, and $\dot J\dot q$; verify that the expressions contain no floating-point coefficients and that each $L_i$ remains present in the relevant geometry.
+\item Check dimensions: $q,\dot q,\ddot q\in\mathbb R^{15}$, $\Phi,\lambda,\dot J\dot q\in\mathbb R^{13}$, and the KKT matrix is $28\times28$.
+\item At one common projected state, substitute numerical values into the symbolic model and compare $\Phi$, $J$, and $\dot J\dot q$ elementwise with the separately written numerical geometry routines.
+\item Solve the KKT system and compute $r_f=M\ddot q+J^T\lambda-Q$ and $r_a=J\ddot q+\dot J\dot q$ for the ideal system, or the matching stabilized residual when stabilization is enabled. Report translational force rows in newtons separately from rotational moment rows in newton-metres.
+\end{enumerate}
+For this derivation the symbolic model reports 15 coordinates, symbolic lengths $L_1,\ldots,L_5$, ten pin rows, and three fixed-pose rows. Its exact-symbol check confirms that no floating-point coefficients have entered $\Phi$, $J$, $M$, $T$, $V$, or $Q_g$; the ideal 28-by-28 KKT system contains no Baumgarte gains, which occur only in the separate stabilized constraint. These checks ensure numerical geometry has not accidentally been baked into the symbolic equations.
+For the notebook's initial-state comparison, the maximum symbolic/numeric differences are $3.331\times10^{-16}$ for $\Phi$, $2.220\times10^{-16}$ for $J$, and $4.337\times10^{-19}$ for $\dot J\dot q$. These values document that implementation pair at that pose.
+
+\subsection{Linear solve checks}
+At each acceleration solve, check the KKT residual
+\begin{equation}
+ r_{\mathrm{KKT}}=\begin{bmatrix}M&J^T\\J&0\end{bmatrix}
+ \begin{bmatrix}\ddot q\\\lambda\end{bmatrix}-
+ \begin{bmatrix}Q\\-\dot J\dot q-2\zeta\omega_BJ\dot q-\omega_B^2\Phi\end{bmatrix}.
+\end{equation}
+For the upper KKT block, report translational force and rotational moment residuals separately in newtons and newton-metres, or scale each row by a documented characteristic force or moment before combining them. For the lower block, report pin and grounded-translation acceleration residuals in metres per second squared separately from the grounded angular-acceleration residual in radians per second squared. Likewise, $\Phi$ contains pin-position residuals in metres and a fixed-angle residual in radians, while $J\dot q$ contains translational speeds and angular rates; report pin and ground components separately or use explicit scales. Confirm that $J$ has the expected rank at the tested pose. A successful factorization alone is not evidence that equations, signs, or units are correct.
+
+\subsection{Trajectory checks}
+Because the constraint vector contains both translational and angular rows, report separate component norms:
+\begin{equation}
+ \begin{aligned}
+ e_{p,\mathrm{pin}}&=\max_{1\le j\le10}|\Phi_j|,&
+ e_{p,\mathrm{ground}}&=\max(|\Phi_{11}|,|\Phi_{12}|),&
+ e_{\theta,\mathrm{ground}}&=|\Phi_{13}|,\\
+ e_{v,\mathrm{pin}}&=\max_{1\le j\le10}|(J\dot q)_j|,&
+ e_{v,\mathrm{ground}}&=\max(|(J\dot q)_{11}|,|(J\dot q)_{12}|),&
+ e_{\omega,\mathrm{ground}}&=|(J\dot q)_{13}|.
+ \end{aligned}
+\end{equation}
+The pin position and velocity norms have units of metres and metres per second; the ground translation and translation-rate norms have the same respective units, while the ground angle and angular-rate norms are in radians and radians per second. The trajectory check loops over every saved state, reevaluates $\Phi(q_k)$ and $J(q_k)$, and records the maxima of these components. It also confirms that the solver reports success, reaches the requested final time, and returns finite state values. Repeat with tighter tolerances or a smaller maximum step and compare the trajectory and quantities relevant to the intended use. Output sampling density alone is not an integration convergence study.
+
+\subsection{Validation evidence}
+The current five-link model is an ideal planar rigid-body mechanism. Its notebook verifies internal consistency and numerical closure but does not compare predictions against a physical prototype or measurement data. It therefore demonstrates code verification and numerical consistency, not empirical validation. A validation study would additionally need measured geometry, masses/inertias, joint behavior, loading, sensor uncertainty, and comparison metrics appropriate to the intended application \cite{oberkampfroy2010}.
+
+\section{Acceptance checks for the examples}
+\begin{center}
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.22\textwidth}>{\raggedright\arraybackslash}p{0.38\textwidth}>{\raggedright\arraybackslash}p{0.31\textwidth}@{}}
+\toprule
+Evidence & Check & Five-link result \\
+\midrule
+Initial consistency & Pin position and velocity residuals after projection & \(4.441\times10^{-16}\,\mathrm m\); \(4.718\times10^{-16}\,\mathrm{m\,s^{-1}}\) \\
+Initial grounding & Translation, angle, translation-rate, angular-rate residuals & \(0\,\mathrm m\); \(0\,\mathrm{rad}\); \(1.561\times10^{-17}\,\mathrm{m\,s^{-1}}\); \(1.648\times10^{-17}\,\mathrm{s^{-1}}\) \\
+Local mobility & Rank of \(J\) at the initial pose & Rank 13; two remaining DOF \\
+Equation implementation & Symbolic/numeric \(\Phi\), \(J\), and bias comparison & Differences below \(4\times10^{-16}\) \\
+Force solve & Initial KKT residual by component family & \(1.998\times10^{-15}\,\mathrm N\) force; \(4.663\times10^{-15}\,\mathrm{N\,m}\) moment \\
+Integration & Solver reaches 10 s successfully & 2,001 saved samples \\
+Constraint preservation & Maximum pin position and velocity errors & \(1.108\times10^{-9}\,\mathrm m\); \(1.247\times10^{-7}\,\mathrm{m\,s^{-1}}\) \\
+Grounding & Translation, angle, translation-rate, angular-rate maxima & \(1.333\times10^{-17}\,\mathrm m\); \(3.031\times10^{-19}\,\mathrm{rad}\); \(1.092\times10^{-15}\,\mathrm{m\,s^{-1}}\); \(1.648\times10^{-17}\,\mathrm{s^{-1}}\) \\
+Energy behavior & Relative mechanical-energy drift in the baseline run & \(3.158\times10^{-7}\) \\
+\bottomrule
+\end{tabular}
+\end{center}
+These values describe one parameter set, one solver configuration, and sampled output states. They do not guarantee accuracy between samples, validate the idealized model against a physical mechanism, or establish robustness near singular configurations.
+
+\section{Algorithmic outline}
+\begin{enumerate}
+ \item Verify symbolic expressions and their dimensions before assigning numerical parameters.
+ \item Compare symbolic and independently coded kinematics, Jacobians, and acceleration bias at multiple admissible states.
+ \item Check rank and KKT residuals at representative configurations.
+ \item Integrate from projected initial data and inspect solver success and state finiteness.
+ \item Evaluate position, velocity, and fixed-pose errors at every saved state.
+ \item Refine tolerances and step limits, vary stabilization gains, and report trajectory and residual sensitivity rather than relying on a single run.
+ \item Label any comparison with analytical solutions, benchmarks, or measurements according to the evidence actually available.
+\end{enumerate}
+
+\section{Summary}
+Symbolic identities, independent implementation comparisons, linear residuals, trajectory constraints, and refinement studies provide complementary verification evidence. Physical validation requires experimental or otherwise independent evidence not present in this example.
+
+\ifSubfilesClassLoaded{\backmatter\bookbibliography}{}
+\end{document}

@@ -1,0 +1,54 @@
+\documentclass[../main.tex]{subfiles}
+\begin{document}
+\chapter{Results and Visualization}
+\label{chap:results}
+
+\section{State of the Art}
+Simulation results should report model parameters, solver settings, diagnostics, and enough implementation detail for reproduction. Reproducible-computation guidance emphasizes preserving the code and computational context behind reported results \cite{sandve2013reproducible}. This focused review uses that reproducibility guidance, checked 2026-10-07. The chapter reports one run from the canonical five-link notebook; it is not a parameter study, benchmark comparison, or experimental validation.
+
+\section{Example configuration}
+The model contains five planar rigid bodies with coordinates ordered \((x_i,y_i,\theta_i)\). The five perimeter pins and a fixed pose for link 4 give 13 independent constraints at the initial pose, leaving two local degrees of freedom. The masses are \((1.2,0.9,1.1,1.0,0.8)\,\mathrm{kg}\), and the planar inertias are \((0.30,0.22,0.28,0.25,0.18)\,\mathrm{kg\,m^2}\). Derived center-to-center link lengths are
+\begin{equation*}
+ (3.19061,\;1.08167,\;2.05913,\;1.00000,\;1.86815)\,\mathrm{m}.
+\end{equation*}
+Gravity is \(9.81\,\mathrm{m\,s^{-2}}\). The links are ideal, rigid, and unactuated; link 4 is grounded.
+
+The initial generalized velocity is constructed by perturbing the angular velocity of link 1 and projecting onto the velocity constraints. The ODE run uses the settings listed in Chapter 9. No damping, friction, contact, or external drives are included.
+
+\section{Numerical result}
+The projected initial state has pin position residual \(4.441\times10^{-16}\,\mathrm m\) and pin velocity residual \(4.718\times10^{-16}\,\mathrm{m\,s^{-1}}\). The grounded translation and angle residuals are zero, while their rates are \(1.561\times10^{-17}\,\mathrm{m\,s^{-1}}\) and \(1.648\times10^{-17}\,\mathrm{s^{-1}}\). The initial constraint Jacobian has rank 13. At the initial KKT solve, the maximum translational force residual is \(1.998\times10^{-15}\,\mathrm N\), the maximum moment residual is \(4.663\times10^{-15}\,\mathrm{N\,m}\), and the maximum stabilized pin-acceleration residual is \(7.834\times10^{-15}\,\mathrm{m\,s^{-2}}\). The 10 s solve completes successfully with 2,001 saved output states and 13,154 right-hand-side evaluations. Across saved states, the maximum pin-position closure error is \(1.108\times10^{-9}\,\mathrm m\), and maximum pin-velocity residual is \(1.247\times10^{-7}\,\mathrm{m\,s^{-1}}\). Link 4's maximum translation error is \(1.333\times10^{-17}\,\mathrm m\), its maximum angle error is \(3.031\times10^{-19}\,\mathrm{rad}\), and its final pin position residual is \(9.353\times10^{-11}\,\mathrm m\). Relative mechanical-energy drift, scaled by the larger of one joule or the initial energy magnitude, is \(3.158\times10^{-7}\) for this Baumgarte-stabilized run.
+
+The initial and final configurations show substantial motion of the unfixed links while the grounded pose remains fixed. The outline is drawn by connecting joint attachment points and is only a visualization proxy: the equations use full rigid-body masses and inertias. The animation samples saved solver output for display; it does not alter the integration or establish accuracy by itself.
+
+\subsection{Figure and animation generation}
+
+The notebook builds the static configuration figure and movie from the saved generalized-coordinate history. Its plotting procedure is:
+\begin{enumerate}
+\item For each selected saved state, read every body's center and orientation and map its local pin offsets into world coordinates.
+\item Plot the five pin-to-pin outlines and center markers. If a filled body outline is shown, sort the attachment points by their polar angle about the center and close the polygon; label this as a display proxy, not the rigid-body geometry used in the equations.
+\item For the initial/final comparison, draw the projected initial state and the last saved state on equal-scale axes.
+\item For the movie, compute world bounds from all saved centers and pins over the full trajectory, then hold those axes fixed. Select evenly spaced saved states at the chosen display frame rate and update existing line, marker, label, pin, and time artists for each frame.
+\item Encode the frames, reopen the written animation, and verify both its frame count and the sum of encoded frame durations against the intended frame rate and simulation duration.
+\end{enumerate}
+In the notebook, the ten-second run produces 200 frames at 20 frames per second. This verifies the movie artifact's timing and frame count; the plotted path remains a visualization of the numerical result, not a substitute for constraint, solver, or sensitivity checks.
+
+\section{Sensitivity to tolerances and stabilization}
+Two additional ten-second runs keep the initial state and output times fixed. Tightening the relative and absolute tolerances from \(10^{-8},10^{-10}\) to \(10^{-9},10^{-11}\), while keeping the maximum step at \(0.01\,\mathrm{s}\) and \(\omega_B=20\,\mathrm{s}^{-1}\), increases RHS evaluations from 13,154 to 20,492. The maximum pin-velocity residual falls from \(1.247\times10^{-7}\) to \(1.019\times10^{-8}\,\mathrm{m\,s^{-1}}\), while maximum pin-position closure is \(9.746\times10^{-11}\,\mathrm m\). Relative energy drift falls to \(2.548\times10^{-8}\). The maximum coordinate difference from the baseline sampled trajectory is \(9.397\times10^{-5}\).
+
+Halving the Baumgarte frequency to \(10\,\mathrm{s}^{-1}\) at baseline solver tolerances reduces RHS evaluations to 8,654. Maximum pin-position and pin-velocity residuals become \(2.018\times10^{-9}\,\mathrm m\) and \(1.058\times10^{-7}\,\mathrm{m\,s^{-1}}\); relative energy drift is \(3.191\times10^{-7}\), and the maximum coordinate difference from baseline is \(2.405\times10^{-4}\). The Jacobian rank remains 13 at every saved state in both runs. In both sensitivity runs, grounded-pose translation stays below $4.4\times10^{-17}\,\mathrm m$ and grounded-angle error below $6.1\times10^{-19}\,\mathrm{rad}$. These comparisons show a tradeoff between computational work, constraint residuals, and trajectory sensitivity. They are a small sensitivity check, not a convergence proof or a broad study of solver/gain combinations.
+
+\begin{figure}[htbp]
+ \centering
+ \includegraphics[width=0.95\textwidth]{five_link_configurations.png}
+ \caption{Initial and final configurations from the 10 s five-link run. Lines join pin attachment points to visualize rigid-link orientation; they do not depict body deformation.}
+ \label{fig:five-link-configurations}
+\end{figure}
+
+\section{Reproducibility record}
+The canonical executable artifact is the five-link dynamics notebook in the project root. The recorded environment uses Python from the project virtual environment with NumPy 2.5.3, SymPy 1.14.0, SciPy 1.18.1, Matplotlib 3.11.2, and Pillow 12.3.0. The notebook regenerates the 10 s, 200-frame GIF and checks its encoded duration. The result is deterministic only to the extent that numerical library versions, solver settings, and the platform remain equivalent; figures and metrics should be regenerated after changes.
+
+\section{Summary}
+This run demonstrates a moving closed-chain solution with small sampled position and velocity residuals under one explicit set of parameters and numerical settings. The values are evidence for this run, not universal accuracy thresholds. Chapter 12 bounds what can be inferred and identifies extensions needed for higher-fidelity applications.
+
+\ifSubfilesClassLoaded{\backmatter\bookbibliography}{}
+\end{document}

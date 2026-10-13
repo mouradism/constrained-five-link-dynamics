@@ -1,0 +1,23 @@
+\chapter*{General Introduction}
+\addcontentsline{toc}{chapter}{General Introduction}
+
+\label{chap:introduction}
+
+Multibody systems are assemblies of bodies whose motion is coupled by joints, force interactions, and geometric relations. When a mechanism contains a closed loop, the bodies cannot move independently: their positions and velocities must remain compatible with loop-closure constraints. This coupling affects modeling, equation derivation, reaction-force recovery, numerical integration, and verification. The purpose of this book is to build a clear route from a physical mechanism to equations that can be simulated and checked.
+
+The intended reader has a working knowledge of introductory mechanics, rigid-body motion, linear algebra, and ordinary differential equations. The book introduces the additional structure needed for constrained systems rather than assuming prior expertise in multibody software. It compares common dynamics formulations, distinguishes coordinate choice from equation and solver choice, derives a small open-chain example, and then applies the ideas to a closed-chain mechanism.
+
+\section*{Scope and assumptions}
+The main case study is a planar loop of five rigid links connected by five ideal revolute pins, with link 4 grounded horizontally. Each body is represented by center-of-mass coordinates \((x_i,y_i)\) and an orientation \(\theta_i\). The resulting 15 coordinates are subject to ten scalar pin equations and three fixed-pose equations. At the modeled initial configuration the constraint Jacobian has rank 13, leaving two local degrees of freedom. Rank is configuration-dependent, so this count is not asserted at every possible pose.
+
+The worked model assumes ideal rigid bodies, fixed mass properties, ideal pins, a fixed ground link, and uniform gravity. It omits contact, joint clearance, friction, compliance, flexible deformation, actuation, and experimental calibration. These omissions make the equations easier to inspect; they also limit the model's applicability to real hardware.
+
+An open-chain double pendulum serves a different purpose. It demonstrates how to choose generalized coordinates, derive energies, form Euler--Lagrange equations, extract the mass matrix and remaining terms symbolically, and prepare a first-order initial-value problem. It is explicitly not a closed-chain example. The two examples together show which parts of a workflow come from Lagrangian mechanics and which additional equations arise from loop closure.
+
+\section*{How to use the book}
+Equations, derivations, and language-neutral pseudocode appear in the chapters. The Jupyter notebooks provide executable symbolic derivations, numerical checks, plots, and animation; Python implementation listings are collected in the final appendix. The double-pendulum notebook checks its symbolic decomposition and energy behavior. The five-link notebook checks the position constraints, their Jacobian and acceleration bias, the KKT solve, and trajectory closure.
+
+Each chapter includes a focused State of the Art section. The introductory synthesis that follows gives a book-wide orientation and states its coverage boundary. These sections are selective and tied to the sources cited; they should not be read as exhaustive systematic reviews.
+
+\section*{Roadmap}
+Chapter 1 compares Newton--Euler, Lagrange, virtual-work, Kane, and Hamiltonian formulations. Chapters 2 and 3 define the mechanism, coordinate system, and rigid-body kinematics. Chapter 4 derives and simulates the double pendulum. Chapters 5--8 formulate loop constraints, differentiate them, assemble the constrained dynamics, and construct consistent initial conditions. Chapters 9--11 discuss integration and drift, verification and validation, and the five-link results. Chapter 12 records the assumptions' limits and outlines possible extensions. The appendix gathers the reader-facing Python implementations.

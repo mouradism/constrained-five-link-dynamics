@@ -1,0 +1,70 @@
+\documentclass[../main.tex]{subfiles}
+\begin{document}
+\chapter{Consistent Initial Conditions}
+\label{chap:initial-conditions}
+
+\section{State of the Art}
+Constrained dynamics requires initial data compatible with its algebraic constraints. Projection corrects approximate positions and velocities toward the constraint manifold, while DAE formulations can impose additional consistency requirements \cite{shabana2013dynamics,ascherpetzold1998}. This focused review covers the geometric and numerical consistency requirements used in the example; it does not compare projection algorithms or DAE packages. Bibliographic scope checked 2026-10-07.
+
+\section{Position and velocity consistency}
+
+For the closed-chain model, the initial position $\vect{q}_0$ must satisfy
+\begin{equation}
+	\vect{\Phi}(\vect{q}_0)=\vect{0}.
+	\label{eq:initial-position-consistency}
+\end{equation}
+The initial velocity must be tangent to the constraint manifold:
+\begin{equation}
+	J(\vect{q}_0)\dot{\vect{q}}_0=\vect{0}.
+	\label{eq:initial-velocity-consistency}
+\end{equation}
+Thus, a configuration can satisfy all pin positions while a proposed velocity still separates one or more pins. Both checks are needed before integration.
+
+Initial acceleration is not an independent initial datum in this acceleration-level formulation. Once $\vect{q}_0$ and $\dot{\vect{q}}_0$ are consistent, solve the equations of motion and acceleration constraint to obtain $\ddot{\vect{q}}_0$ and the reactions $\vect{\lambda}_0$.
+
+\section{Projection of approximate initial data}
+
+In practice, geometry may be specified approximately. Starting from a trial position $\vect{q}_k$, linearize the residual and choose a correction $\Delta\vect{q}_k$ satisfying
+\begin{equation}
+	J(\vect{q}_k)\Delta\vect{q}_k
+	\approx -\vect{\Phi}(\vect{q}_k),
+	\qquad
+	\vect{q}_{k+1}=\vect{q}_k+\Delta\vect{q}_k.
+	\label{eq:position-projection-step}
+\end{equation}
+Because the system uses redundant coordinates, the correction is not unique. A least-squares solve can select a minimum-norm correction; repeat the linearization until the position residual meets a stated tolerance or report failure to converge. Check that the Jacobian has the expected rank before interpreting this correction as a regular projection.
+
+After obtaining a consistent position, correct a trial velocity $\dot{\vect{q}}_{\mathrm{trial}}$ by solving
+\begin{equation}
+	J(\vect{q}_0)\Delta\dot{\vect{q}}
+	=-J(\vect{q}_0)\dot{\vect{q}}_{\mathrm{trial}},
+	\qquad
+	\dot{\vect{q}}_0=\dot{\vect{q}}_{\mathrm{trial}}+\Delta\dot{\vect{q}}.
+	\label{eq:velocity-projection-step}
+\end{equation}
+Again, a least-squares solution selects one admissible correction, not a unique physical choice. If initial velocities have physical meaning, choose a correction criterion that preserves the intended motion as closely as possible.
+
+\subsection{Initialization algorithm}
+
+The notebook projects only the initial state. Its operation can be summarized as follows:
+\begin{enumerate}
+\item Form a geometric position guess from the specified pins, compute $\vect\Phi(\vect q_{\mathrm{guess}})$ and $J(\vect q_{\mathrm{guess}})$, and verify that $J$ has the expected row rank.
+\item While $\|\vect\Phi(\vect q_k)\|_\infty$ exceeds the position tolerance, solve the minimum-norm least-squares correction $J(\vect q_k)\Delta\vect q_k\approx-\vect\Phi(\vect q_k)$ and update $\vect q_{k+1}=\vect q_k+\Delta\vect q_k$.
+\item Stop with a reported failure if the residual does not reach tolerance within the iteration limit; do not silently pass an inconsistent pose to the integrator.
+\item At the corrected position, evaluate $J$ and solve the minimum-norm velocity correction $J\Delta\dot{\vect q}=-J\dot{\vect q}_{\mathrm{trial}}$. Set $\dot{\vect q}_0=\dot{\vect q}_{\mathrm{trial}}+\Delta\dot{\vect q}$.
+\item Check both $\|\vect\Phi(\vect q_0)\|_\infty$ and $\|J(\vect q_0)\dot{\vect q}_0\|_\infty$. Then solve the constrained acceleration equations once and check force-balance and acceleration-constraint residuals before starting the trajectory integration.
+\end{enumerate}
+For the notebook's projected initial state, the raw pin position residual is $4.441\times10^{-16}\,\mathrm m$, grounded translation error is zero, and grounded angle error is zero. The pin velocity residual is $4.718\times10^{-16}\,\mathrm{m\,s^{-1}}$; the grounded translation-rate and angular-rate residuals are $1.561\times10^{-17}\,\mathrm{m\,s^{-1}}$ and $1.648\times10^{-17}\,\mathrm{s^{-1}}$, respectively. These values verify that particular initialization; tolerances should be selected relative to units and model scales in other applications.
+
+\section{Checks before integration}
+
+Before starting the solver, evaluate $\|\vect{\Phi}(\vect{q}_0)\|_\infty$ and $\|J(\vect{q}_0)\dot{\vect{q}}_0\|_\infty$. Confirm the Jacobian rank expected for the selected configuration, then solve the constrained acceleration equations and check both force-balance and acceleration-constraint residuals. Tolerances should be reported with units and interpreted relative to the model scales; there is no universal projection tolerance for every mechanism.
+
+In the five-link notebook, position and velocity projection are performed on the initial guess before integration. Projection is not applied after every time step in that example; subsequent drift is controlled by the selected Baumgarte term and monitored separately.
+
+\section{Summary and transition}
+
+Consistent initialization requires position closure and tangent velocity. Acceleration follows from the constrained equations. Projection offers a practical correction for approximate initial data, but its nonuniqueness and rank assumptions should be stated. With an admissible initial state prepared, the next chapter considers time integration and constraint drift.
+
+\ifSubfilesClassLoaded{\backmatter\bookbibliography}{}
+\end{document}

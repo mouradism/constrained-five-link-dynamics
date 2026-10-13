@@ -1,0 +1,112 @@
+\documentclass[../main.tex]{subfiles}
+\begin{document}
+\chapter{Constraint Velocities and Accelerations}
+\label{chap:constraint-kinematics}
+
+\section{State of the Art}
+Constraint kinematics follow by differentiating holonomic position equations. Evaluation of the acceleration bias and Jacobian derivatives is important for simulation and reaction-force calculations \cite{shabana2013dynamics}. This focused review uses the standard analytical derivative hierarchy for the planar pin model; it does not compare automatic-differentiation or recursive implementations. Bibliographic scope checked 2026-10-07.
+
+\section{Position constraints imply velocity constraints}
+
+Begin with the assembled holonomic equations
+\begin{equation}
+	\vect{\Phi}(\vect{q})=\vect{0}.
+	\label{eq:holonomic-position}
+\end{equation}
+Define the constraint Jacobian $J(\vect{q})=\partial\vect{\Phi}/\partial\vect{q}$. Differentiating~\eqref{eq:holonomic-position} with respect to time gives
+\begin{equation}
+	\dot{\vect{\Phi}}=J(\vect{q})\dot{\vect{q}}=\vect{0}.
+	\label{eq:velocity-constraint}
+\end{equation}
+The admissible generalized velocities therefore lie in the null space of $J$. At a regular configuration, that null space has dimension $n_q-\operatorname{rank}(J)$, equal to the local mobility.
+
+\section{Acceleration constraints and curvature terms}
+
+Differentiate~\eqref{eq:velocity-constraint} again. Because $J$ depends on configuration, its time derivative contributes:
+\begin{equation}
+	\ddot{\vect{\Phi}}
+	=J(\vect{q})\ddot{\vect{q}}
+	 +\dot J(\vect{q},\dot{\vect{q}})\dot{\vect{q}}
+	=\vect{0}.
+	\label{eq:acceleration-constraint}
+\end{equation}
+The vector $\dot J\dot{\vect{q}}$ is sometimes called the acceleration bias or curvature term. It is generally nonzero even though the position constraints are homogeneous and time-independent.
+
+For a point fixed in a rotating planar body, write its body-frame offset as $\vect{s}$ and let $\vect{\rho}=A(\theta)\vect{s}$ be the rotated offset. Since $\dot{\vect{\rho}}=\dot\theta S\vect{\rho}$, its world acceleration is
+\begin{equation}
+	\ddot{\vect{r}}
+	=\ddot{\vect{p}}+\ddot\theta S\vect{\rho}-\dot\theta^2\vect{\rho}.
+	\label{eq:rotating-point-acceleration}
+\end{equation}
+The last term is centripetal acceleration. For a pin residual $\vect{r}_a-\vect{r}_b$, take the signed difference of the two attached-point accelerations. The terms multiplying translational and angular accelerations form $J\ddot{\vect{q}}$; the remaining squared-angular-speed terms form $\dot J\dot{\vect{q}}$. Fixed-pose constraints are linear in the coordinates and contribute no curvature term.
+If $\vect\rho_a=A(\theta_a)\vect s_a$ and $\vect\rho_b=A(\theta_b)\vect s_b$ are the world attachment offsets, the two-component pin bias is
+\begin{equation}
+\vect\gamma_{ab}=-\dot\theta_a^2\vect\rho_a+\dot\theta_b^2\vect\rho_b.
+\label{eq:pin-acceleration-bias}
+\end{equation}
+The signs follow from subtracting the centripetal terms $-\dot\theta_i^2\vect\rho_i$ in the two point accelerations according to the first-body-minus-second-body residual convention.
+
+\section{Five-link constraint derivative hierarchy}
+
+For the five-link model, the complete hierarchy is
+\begin{equation}
+	\begin{aligned}
+		\text{position:}\quad &\vect{\Phi}(\vect{q})=\vect{0},\\
+		\text{velocity:}\quad &J(\vect{q})\dot{\vect{q}}=\vect{0},\\
+		\text{acceleration:}\quad &J(\vect{q})\ddot{\vect{q}}
+			+\vect{\gamma}(\vect{q},\dot{\vect{q}})=\vect{0},
+	\end{aligned}
+	\label{eq:constraint-hierarchy}
+\end{equation}
+where $\vect{\gamma}=\dot J\dot{\vect{q}}$. The symbolic notebook derives this term by differentiating the velocity-level equations; the numerical model independently computes the same centripetal contributions. Their agreement is checked at the projected initial state before integration.
+The notebook computes it in two independent ways. Symbolically, form $\dot{\vect\Phi}=J\dot{\vect q}$, differentiate with respect to $\vect q$ and multiply by $\dot{\vect q}$; this is the part of the total derivative that excludes $J\ddot{\vect q}$. Numerically, evaluate~\eqref{eq:pin-acceleration-bias} for each pin and append zeros for the fixed-pose rows. Compare these vectors at the same consistent state before integration. At the notebook's projected initial state, the maximum component difference is $4.337\times10^{-19}$.
+
+For the symbolic notebook's midpoint links, each pin residual joins the right endpoint of link $i$ to the left endpoint of link $j$. Write $c_i=\cos\theta_i$, $s_i=\sin\theta_i$, and $\omega_i=\dot\theta_i$. The 13 ideal acceleration residuals, ordered as the two rows for each pin followed by the grounded pose, are
+\begin{equation}
+\begin{aligned}
+r_{12,x}={}&\ddot x_1-\ddot x_2
+-\frac{L_1}{2}(\ddot\theta_1s_1+\omega_1^2c_1)
+-\frac{L_2}{2}(\ddot\theta_2s_2+\omega_2^2c_2)=0,\\
+r_{12,y}={}&\ddot y_1-\ddot y_2
++\frac{L_1}{2}(\ddot\theta_1c_1-\omega_1^2s_1)
++\frac{L_2}{2}(\ddot\theta_2c_2-\omega_2^2s_2)=0,\\[2pt]
+r_{23,x}={}&\ddot x_2-\ddot x_3
+-\frac{L_2}{2}(\ddot\theta_2s_2+\omega_2^2c_2)
+-\frac{L_3}{2}(\ddot\theta_3s_3+\omega_3^2c_3)=0,\\
+r_{23,y}={}&\ddot y_2-\ddot y_3
++\frac{L_2}{2}(\ddot\theta_2c_2-\omega_2^2s_2)
++\frac{L_3}{2}(\ddot\theta_3c_3-\omega_3^2s_3)=0,\\[2pt]
+r_{34,x}={}&\ddot x_3-\ddot x_4
+-\frac{L_3}{2}(\ddot\theta_3s_3+\omega_3^2c_3)
+-\frac{L_4}{2}(\ddot\theta_4s_4+\omega_4^2c_4)=0,\\
+r_{34,y}={}&\ddot y_3-\ddot y_4
++\frac{L_3}{2}(\ddot\theta_3c_3-\omega_3^2s_3)
++\frac{L_4}{2}(\ddot\theta_4c_4-\omega_4^2s_4)=0,\\[2pt]
+r_{45,x}={}&\ddot x_4-\ddot x_5
+-\frac{L_4}{2}(\ddot\theta_4s_4+\omega_4^2c_4)
+-\frac{L_5}{2}(\ddot\theta_5s_5+\omega_5^2c_5)=0,\\
+r_{45,y}={}&\ddot y_4-\ddot y_5
++\frac{L_4}{2}(\ddot\theta_4c_4-\omega_4^2s_4)
++\frac{L_5}{2}(\ddot\theta_5c_5-\omega_5^2s_5)=0,\\[2pt]
+r_{51,x}={}&\ddot x_5-\ddot x_1
+-\frac{L_5}{2}(\ddot\theta_5s_5+\omega_5^2c_5)
+-\frac{L_1}{2}(\ddot\theta_1s_1+\omega_1^2c_1)=0,\\
+r_{51,y}={}&\ddot y_5-\ddot y_1
++\frac{L_5}{2}(\ddot\theta_5c_5-\omega_5^2s_5)
++\frac{L_1}{2}(\ddot\theta_1c_1-\omega_1^2s_1)=0,\\[2pt]
+r_{g,x}={}&\ddot x_4=0,\qquad
+r_{g,y}=\ddot y_4=0,\qquad
+r_{g,\theta}=\ddot\theta_4=0.
+\end{aligned}
+\label{eq:five-link-expanded-acceleration-residuals}
+\end{equation}
+Collecting these entries gives exactly $J\ddot{\vect q}+\dot J\dot{\vect q}=\vect0$. The terms proportional to $\ddot\theta_i$ come from tangential acceleration of the endpoint offsets; the $\omega_i^2$ terms are centripetal contributions. In the notebook's stabilized solve, Baumgarte feedback is formed over the full 13-entry residual, including the three grounded-pose rows. Those final three correction terms are zero while link~4 remains exactly at its reference pose with zero velocity; they are not omitted from the formula.
+
+Equation~\eqref{eq:acceleration-constraint} supplies the kinematic equations needed to determine accelerations compatible with loop closure. In the next chapter, these equations are coupled to force balance, with Lagrange multipliers representing ideal joint reactions.
+
+\section{Summary}
+
+Differentiating holonomic constraints produces velocity compatibility and then acceleration compatibility. The acceleration equation contains both the unknown generalized accelerations and the configuration/velocity-dependent bias term. Omitting that term would fail to enforce the actual acceleration of rotating pin locations.
+
+\ifSubfilesClassLoaded{\backmatter\bookbibliography}{}
+\end{document}

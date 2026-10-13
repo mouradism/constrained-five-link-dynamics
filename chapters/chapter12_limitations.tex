@@ -1,0 +1,37 @@
+\documentclass[../main.tex]{subfiles}
+\begin{document}
+\chapter{Limitations and Extensions}
+\label{chap:limitations}
+
+\section{State of the Art}
+Multibody simulation spans rigid and flexible bodies, ideal and compliant joints, open and closed topologies, and models with contact, friction, and actuation. The appropriate fidelity depends on the engineering question; increasing model detail can introduce additional states, parameters, nonsmooth events, and numerical stiffness. Shabana provides broader coverage of rigid and deformable multibody formulations, while differential-algebraic and numerical-integration references describe important solver consequences \cite{shabana2013dynamics,ascherpetzold1998,hairerwanner1996}. This focused scope-setting synthesis uses these foundational works, checked 2026-10-07; it is not a survey of each extension area.
+
+\section{Limitations of the worked model}
+The running mechanism is planar and consists of rigid links with constant center-of-mass coordinates, constant mass properties, ideal revolute pins, and a perfectly grounded fourth link. It omits:
+\begin{itemize}
+ \item joint clearance, friction, backlash, and compliance;
+ \item link flexibility, structural damping, and material limits;
+ \item impacts, unilateral contact, collision detection, and frictional contact;
+ \item actuator dynamics, control laws, and time-varying external loads;
+ \item parameter uncertainty and comparison with measured motion or reaction forces.
+\end{itemize}
+The numerical trajectory is one unforced example under gravity with Baumgarte stabilization. Low closure residuals do not prove the physical assumptions are adequate, nor do they guarantee solver robustness at singular configurations.
+
+\section{Possible extensions}
+\subsection{Spatial motion}
+Three-dimensional bodies require six configuration variables per body in a suitable representation. Rotations introduce additional kinematic structure and, for some parameterizations, coordinate singularities. Joint constraints and mobility must be reformulated for spatial joints rather than obtained by simply copying planar equations.
+
+\subsection{Flexible bodies and compliant joints}
+Flexible-body models add elastic coordinates or continuum approximations and require consistent coupling between rigid motion and deformation. Compliant joints replace exact closure conditions with force laws; their parameters should be identified or bounded, and their added high-frequency dynamics may require stiff integration.
+
+\subsection{Contact, friction, and actuation}
+Unilateral contact introduces inequality conditions and impact events; friction may make the equations nonsmooth. These cases generally need contact-aware formulations and event or complementarity treatment rather than the smooth ODE used here. Actuation and control can be incorporated through generalized forces, provided the force application points, torque signs, and power balance are stated explicitly.
+
+\subsection{Robust numerics and model evidence}
+Future work can compare a dedicated DAE approach, projection after accepted steps, coordinate reduction, and alternative stabilization gains using identical initial data and common error measures. Singular poses, conditioning, energy and momentum behavior, and sensitivity to parameters should be studied. Physical validation additionally requires measurements and uncertainty analysis; it cannot be inferred from symbolic agreement or numerical closure alone.
+
+\section{Summary}
+The five-link example isolates the mechanics of planar ideal loop closure but is not a universal model of a real mechanism. Extensions should be selected from the intended use, supported with appropriate physical data, and paired with numerical methods suited to the resulting equations.
+
+\ifSubfilesClassLoaded{\backmatter\bookbibliography}{}
+\end{document}

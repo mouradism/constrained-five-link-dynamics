@@ -1,0 +1,124 @@
+\documentclass[../main.tex]{subfiles}
+\begin{document}
+\chapter{Closed-Chain Dynamics and Reaction Forces}
+\label{chap:constrained-dynamics}
+
+\section{State of the Art}
+Constrained multibody formulations combine rigid-body force balance with algebraic joint constraints. Lagrange multipliers represent ideal reactions when redundant coordinates are retained \cite{shabana2013dynamics}. The resulting saddle-point equations are related to differential-algebraic formulations, whose numerical treatment depends on consistency and solver choices \cite{ascherpetzold1998}. This focused review covers the standard multiplier formulation and its DAE context; it does not benchmark current constrained-dynamics algorithms. Bibliographic scope checked 2026-10-07.
+
+\section{Force balance for Cartesian rigid bodies}
+
+For the five-link model, each planar body is described by its center-of-mass coordinates and orientation. With constant mass and planar inertia, the mass matrix is
+\begin{equation}
+	M=\operatorname{diag}(m_1,m_1,I_1,\ldots,m_5,m_5,I_5).
+	\label{eq:five-link-mass-matrix}
+\end{equation}
+In these center-of-mass coordinates, the kinetic energy is quadratic with constant $M$, so there is no velocity-dependent inertial bias in the unconstrained force-balance equations.
+
+Let $\vect{Q}_{\mathrm{ext}}$ denote applied generalized forces other than gravity, and let $V(\vect{q})$ be the gravitational potential. The gravitational generalized force is
+\begin{equation}
+	\vect{Q}_g=-\frac{\partial V}{\partial\vect{q}},
+	\qquad
+	\vect{Q}_{\mathrm{total}}=\vect{Q}_{\mathrm{ext}}+\vect{Q}_g.
+	\label{eq:five-link-generalized-forces}
+\end{equation}
+For example, with $y_i$ positive upward, $V=\sum_i m_i g y_i$ and each vertical force component is $-m_i g$.
+
+Without constraints, force balance would be $M\ddot{\vect{q}}=\vect{Q}_{\mathrm{total}}$. Joint reactions must be added so the accelerations also satisfy loop closure.
+
+\section{Lagrange multipliers as ideal reactions}
+
+Let $\vect{\Phi}(\vect{q})=\vect{0}$ be the vector of holonomic pin and fixed-pose constraints, with Jacobian $J=\partial\vect{\Phi}/\partial\vect{q}$. Under the sign convention used in this book, the generalized ideal reaction force is $J^T\vect{\lambda}$. The equations of motion are therefore
+\begin{equation}
+	M\ddot{\vect{q}}+J^T\vect{\lambda}
+	=\vect{Q}_{\mathrm{total}}.
+	\label{eq:constrained-force-balance}
+\end{equation}
+The multiplier vector contains two components for each planar pin and three components for the grounded pose. Its entries depend on the chosen residual signs and row ordering; the physical reactions are unchanged if conventions are transformed consistently.
+
+The acceleration constraints from Chapter~6 are
+\begin{equation}
+	J\ddot{\vect{q}}+\vect{\gamma}(\vect{q},\dot{\vect{q}})=\vect{0},
+	\qquad \vect{\gamma}=\dot J\dot{\vect{q}}.
+	\label{eq:constrained-acceleration}
+\end{equation}
+Equations~\eqref{eq:constrained-force-balance} and~\eqref{eq:constrained-acceleration} determine both the body accelerations and the constraint reactions.
+
+\section{Acceleration-level KKT system}
+
+Stacking force balance and acceleration compatibility gives the saddle-point system
+\begin{equation}
+	\begin{bmatrix}
+		M & J^T\\
+		J & 0
+	\end{bmatrix}
+	\begin{bmatrix}
+		\ddot{\vect{q}}\\\vect{\lambda}
+	\end{bmatrix}
+	=
+	\begin{bmatrix}
+		\vect{Q}_{\mathrm{total}}\\-\vect{\gamma}
+	\end{bmatrix}.
+	\label{eq:constrained-kkt}
+\end{equation}
+For five planar bodies there are 15 acceleration unknowns; the 13 multipliers give 28 total unknowns. With positive masses and inertias, $M$ is positive definite. If $J$ has full row rank at the configuration, the ideal KKT matrix is nonsingular; dependent constraint rows or singular configurations require diagnosis or a suitable rank-revealing/reduced treatment.
+
+For comparison with the notebook's symbolic residual, order the multipliers as $(\lambda_1,\lambda_2)$ for $P_{12}$, $(\lambda_3,\lambda_4)$ for $P_{23}$, $(\lambda_5,\lambda_6)$ for $P_{34}$, $(\lambda_7,\lambda_8)$ for $P_{45}$, $(\lambda_9,\lambda_{10})$ for $P_{51}$, and $(\lambda_{11},\lambda_{12},\lambda_{13})$ for the fixed $x_4,y_4,\theta_4$ pose. With $c_i=\cos\theta_i$ and $s_i=\sin\theta_i$, the upper block $M\ddot{\vect q}+J^T\vect\lambda-\vect Q_g=\vect0$ is the following set of 15 scalar body equations:
+\begin{equation}
+\begin{aligned}
+\text{body 1:}\quad
+&m_1\ddot x_1+\lambda_1-\lambda_9=0,\\
+&m_1\ddot y_1+gm_1-\lambda_{10}+\lambda_2=0,\\
+&I_1\ddot\theta_1-\tfrac12L_1\lambda_1s_1
++\tfrac12L_1\lambda_{10}c_1+\tfrac12L_1\lambda_2c_1
+-\tfrac12L_1\lambda_9s_1=0,\\[2pt]
+\text{body 2:}\quad
+&m_2\ddot x_2-\lambda_1+\lambda_3=0,\\
+&m_2\ddot y_2+gm_2-\lambda_2+\lambda_4=0,\\
+&I_2\ddot\theta_2-\tfrac12L_2\lambda_1s_2+\tfrac12L_2\lambda_2c_2
+-\tfrac12L_2\lambda_3s_2+\tfrac12L_2\lambda_4c_2=0,\\[2pt]
+\text{body 3:}\quad
+&m_3\ddot x_3-\lambda_3+\lambda_5=0,\\
+&m_3\ddot y_3+gm_3-\lambda_4+\lambda_6=0,\\
+&I_3\ddot\theta_3-\tfrac12L_3\lambda_3s_3+\tfrac12L_3\lambda_4c_3
+-\tfrac12L_3\lambda_5s_3+\tfrac12L_3\lambda_6c_3=0,\\[2pt]
+\text{body 4:}\quad
+&m_4\ddot x_4+\lambda_{11}-\lambda_5+\lambda_7=0,\\
+&m_4\ddot y_4+gm_4+\lambda_{12}-\lambda_6+\lambda_8=0,\\
+&I_4\ddot\theta_4+\lambda_{13}-\tfrac12L_4\lambda_5s_4+\tfrac12L_4\lambda_6c_4
+-\tfrac12L_4\lambda_7s_4+\tfrac12L_4\lambda_8c_4=0,\\[2pt]
+\text{body 5:}\quad
+&m_5\ddot x_5-\lambda_7+\lambda_9=0,\\
+&m_5\ddot y_5+gm_5-\lambda_8+\lambda_{10}=0,\\
+&I_5\ddot\theta_5-\tfrac12L_5\lambda_7s_5+\tfrac12L_5\lambda_8c_5
+-\tfrac12L_5\lambda_9s_5+\tfrac12L_5\lambda_{10}c_5=0.
+\end{aligned}
+\label{eq:five-link-expanded-force-residuals}
+\end{equation}
+The first two equations for each body are translational force balance; the third is moment balance about its center of mass. The three extra multipliers act only on the grounded link's pose rows. Together these scalar equations are exactly the upper 15 rows of~\eqref{eq:constrained-kkt}; the lower 13 rows are the expanded acceleration residuals in Chapter~6.
+
+\subsection{Symbolic assembly and one constrained solve}
+
+The notebook keeps $m_i$, $I_i$, $L_i$, and $g$ symbolic while constructing the model. Its diagonal mass matrix follows the coordinate order $(x_i,y_i,\theta_i)$, and gravity contributes only to translational vertical entries. The following algorithm separates exact derivation from numerical evaluation:
+\begin{enumerate}
+\item Create symbolic vectors $\vect q,\dot{\vect q},\ddot{\vect q}$ in body order, and symbolic arrays for five masses, inertias, and link lengths.
+\item Assemble $M=\operatorname{diag}(m_1,m_1,I_1,\ldots,m_5,m_5,I_5)$ and $V=\sum_i m_i g y_i$; differentiate to obtain $\vect Q_g=-\partial V/\partial\vect q$.
+\item Import $\vect\Phi$ and $J$ from the pin geometry. Form $\vect\gamma=\dot J\dot{\vect q}$ by differentiating $J\dot{\vect q}$ and removing its $J\ddot{\vect q}$ contribution.
+\item Define 13 multipliers in the same row order as $\vect\Phi$. Assemble the 28-by-28 matrix in~\eqref{eq:constrained-kkt} and its right-hand side $[\vect Q_{\mathrm{total}}^T,-\vect\gamma^T]^T$.
+\item Before solving, check $\operatorname{rank}(J)=13$ at the current pose. Solve simultaneously for 15 accelerations and 13 multipliers; do not eliminate reaction rows by assuming the coordinates are independent.
+\item Evaluate the force residual $M\ddot{\vect q}+J^T\vect\lambda-\vect Q_{\mathrm{total}}$ and the ideal acceleration residual $J\ddot{\vect q}+\vect\gamma$. Require both to be small relative to the chosen numerical scales.
+\end{enumerate}
+In the numerical notebook, the mass, inertia, and link-length substitutions are performed only after the symbolic expressions have been formed. Because a raw infinity norm over all 15 force-balance rows mixes newtons and newton-metres, the initial solve is reported by component family: the maximum translational force residual is $1.998\times10^{-15}\,\mathrm N$, and the maximum moment residual is $4.663\times10^{-15}\,\mathrm{N\,m}$. These check the linear solve at that state; the separate trajectory checks are needed to assess integration behavior.
+
+The multipliers enforce ideal reaction forces; they are not extra physical state coordinates. The full constrained model also includes the algebraic position equation $\vect{\Phi}(\vect{q})=\vect{0}$, so the dynamics form a DAE. Solving~\eqref{eq:constrained-kkt} at each state evaluation yields accelerations compatible with the acceleration constraints, but numerical integration still needs consistent initial data and may require drift control.
+
+\section{Ideal equations and numerical stabilization}
+
+Equation~\eqref{eq:constrained-kkt} uses the ideal acceleration constraint. Baumgarte stabilization modifies the constraint right-hand side by feeding back position and velocity errors. Such terms belong to the numerical integration formulation, not to the ideal force balance or physical applied loads. Chapter~9 compares that choice with projection, direct DAE integration, coordinate reduction, and penalty approaches.
+
+\section{Summary}
+
+The closed-chain acceleration solve couples rigid-body force balance to acceleration compatibility. Lagrange multipliers encode ideal joint reactions, while the lower KKT block enforces the differentiated loop constraints. The next chapter prepares position and velocity initial data consistent with the constraint manifold.
+
+\ifSubfilesClassLoaded{\backmatter\bookbibliography}{}
+\end{document}

@@ -1,0 +1,92 @@
+\documentclass[../main.tex]{subfiles}
+\begin{document}
+\chapter{Joint Constraints and Loop Closure}
+\label{chap:loop-constraints}
+
+\section{State of the Art}
+Closed-chain kinematics can be represented by holonomic equations requiring connected attachment points to coincide. Redundant Cartesian coordinates make these equations direct to assemble, while reduced-coordinate methods encode closure relations in the coordinates themselves. The choice depends on topology and singularity behavior \cite{shabana2013dynamics}. This focused review is limited to the foundational formulation and rank interpretation used in the example; it does not compare recent loop-closure algorithms. Bibliographic scope checked 2026-10-07.
+
+\section{Revolute-pin constraint}
+
+A planar revolute pin joins one point fixed in body $a$ to one point fixed in body $b$. Let $\vect{s}_a$ and $\vect{s}_b$ be the respective body-frame attachment coordinates. Using the point map from Chapter~3, the world positions are
+\begin{equation}
+	\vect{r}_a=\vect{p}_a+A(\theta_a)\vect{s}_a,
+	\qquad
+	\vect{r}_b=\vect{p}_b+A(\theta_b)\vect{s}_b,
+	\label{eq:pin-world-points}
+\end{equation}
+where $\vect{p}_i=[x_i,y_i]^T$. Coincidence of the points gives the two scalar holonomic constraints
+\begin{equation}
+	\vect{\Phi}_{ab}(\vect{q})
+	=\vect{r}_a(\vect{q})-\vect{r}_b(\vect{q})=\vect{0}.
+	\label{eq:pin-constraint}
+\end{equation}
+The sign convention here is first body minus second body. Reversing the residual sign is equivalent if the Jacobian and multiplier convention are changed consistently.
+
+The Jacobian of this pin residual has nonzero blocks only for the two connected bodies:
+\begin{equation}
+	\frac{\partial\vect{\Phi}_{ab}}{\partial\vect{q}_a}
+	=\begin{bmatrix}I_2&SA(\theta_a)\vect{s}_a\end{bmatrix},
+	\qquad
+	\frac{\partial\vect{\Phi}_{ab}}{\partial\vect{q}_b}
+	=-\begin{bmatrix}I_2&SA(\theta_b)\vect{s}_b\end{bmatrix}.
+	\label{eq:pin-jacobian-blocks}
+\end{equation}
+These blocks follow by differentiating the attachment-point positions with respect to each body's $(x,y,\theta)$ coordinates.
+
+\section{Grounding and assembling the loop}
+
+Fixing a planar rigid body at reference pose $\vect{q}_k^*$ contributes three scalar constraints:
+\begin{equation}
+	\vect{\Phi}_{\mathrm{fix},k}(\vect{q})
+	=\begin{bmatrix}x_k\\y_k\\\theta_k\end{bmatrix}-\vect{q}_k^*
+	=\vect{0}.
+	\label{eq:fixed-pose-constraint}
+\end{equation}
+For the five-link example, the pin graph is the perimeter cycle
+\begin{equation}
+	(1,2),\ (2,3),\ (3,4),\ (4,5),\ (5,1),
+	\label{eq:five-link-pin-edges}
+\end{equation}
+and link 4 is grounded at its initial horizontal pose. Stack the five two-component pin residuals and the three fixed-pose residuals, in a documented row order, to form
+\begin{equation}
+	\vect{\Phi}(\vect{q})=
+	[\vect{\Phi}_{12}^T,\vect{\Phi}_{23}^T,\vect{\Phi}_{34}^T,
+	 \vect{\Phi}_{45}^T,\vect{\Phi}_{51}^T,
+	 \vect{\Phi}_{\mathrm{fix},4}^T]^T=\vect{0}.
+	\label{eq:five-link-constraint-vector}
+\end{equation}
+This vector has 13 scalar entries: ten from pins and three from grounding. The mechanism has 15 Cartesian coordinates, but the number of constraint entries alone does not establish the number of independent constraints.
+
+\subsection{Assembly procedure used by the symbolic model}
+
+The canonical five-link notebook keeps the link lengths symbolic while constructing the residual and Jacobian. With every body frame at its center of mass and aligned with its link, the left and right attachment coordinates of link $i$ are $-\tfrac12L_i\vect e_x$ and $+\tfrac12L_i\vect e_x$. The following procedure describes the complete assembly without depending on a programming language:
+\begin{enumerate}
+\item Order body coordinates as $(x_i,y_i,\theta_i)$ for $i=1,\ldots,5$; define the cyclic pin list $(1,2),(2,3),(3,4),(4,5),(5,1)$.
+\item For each listed pin, map the right endpoint of the first link and the left endpoint of the second link into world coordinates using~\eqref{eq:pin-world-points}; append their two-component difference to $\vect\Phi$.
+\item Append the three residuals fixing the center position and orientation of link~4 to its reference pose.
+\item Differentiate the assembled residual symbolically with respect to all 15 coordinates to form $J=\partial\vect\Phi/\partial\vect q$. Keep $L_1,\ldots,L_5$ symbolic rather than substituting rounded geometric lengths.
+\item Check that $\vect\Phi$ has 13 entries and $J$ has dimensions $13\times15$. At a projected representative pose, evaluate $\operatorname{rank}(J)$ and confirm the expected local rank before using $15-\operatorname{rank}(J)$ as the mobility.
+\end{enumerate}
+The notebook also constructs the same residual and Jacobian in a numerical kinematics class. Evaluating both implementations at the same projected state checks endpoint ordering, residual signs, and the fixed-link rows independently of the symbolic differentiation. The demonstrated differences are below $3.4\times10^{-16}$ for $\vect\Phi$ and $2.3\times10^{-16}$ for $J$ at that state; these are implementation checks for this pose, not general conditioning guarantees.
+
+\section{Constraint Jacobian, rank, and local mobility}
+
+Differentiate the residual vector with respect to generalized coordinates:
+\begin{equation}
+	J(\vect{q})=\frac{\partial\vect{\Phi}}{\partial\vect{q}}.
+	\label{eq:constraint-jacobian}
+\end{equation}
+At a regular configuration, local mobility is the number of coordinates minus the Jacobian rank:
+\begin{equation}
+	n_{\mathrm{dof}}=n_q-\operatorname{rank}J(\vect{q}).
+	\label{eq:local-mobility}
+\end{equation}
+For the notebook's selected pose, $n_q=15$ and $\operatorname{rank}J=13$, giving two local degrees of freedom. This rank statement applies at the evaluated pose; singular configurations can change the rank and hence the local mobility. The SymPy derivation retains link lengths symbolically, while the notebook numerically evaluates rank at the chosen geometry.
+
+\section{Summary and transition}
+
+Each planar pin contributes two point-coincidence equations, and grounding one body contributes three pose equations. Stacking the five perimeter pins and the ground constraints defines $\vect{\Phi}(\vect{q})=\vect{0}$; the Jacobian rank, not equation count alone, determines local mobility. The next chapter differentiates these position constraints to obtain velocity and acceleration compatibility.
+
+\ifSubfilesClassLoaded{\backmatter\bookbibliography}{}
+\end{document}

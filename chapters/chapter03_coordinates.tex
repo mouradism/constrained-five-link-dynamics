@@ -1,0 +1,192 @@
+\documentclass[../main.tex]{subfiles}
+\begin{document}
+\chapter{Coordinates and Rigid-Body Kinematics}
+\label{chap:coordinates}
+
+\section{State of the Art}
+Closed-chain mechanisms can be described using a reduced set of independent coordinates or redundant coordinates together with explicit constraints. Cartesian body coordinates represent body poses directly, while reduced coordinates can produce smaller equations but may be difficult to construct globally and may encounter singularities. This focused review uses the foundational multibody treatment in Shabana; it does not survey recent algorithmic comparisons of coordinate parameterizations. Bibliographic scope checked 2026-10-07 \cite{shabana2013dynamics}.
+
+\section{Cartesian coordinates for planar bodies}
+
+A planar rigid body has two translational coordinates for its center of mass and one orientation coordinate. For body $i$, define
+\begin{equation}
+	\vect{q}_i=[x_i,y_i,\theta_i]^T,
+	\qquad
+	\vect{q}=[\vect{q}_1^T,\ldots,\vect{q}_n^T]^T.
+	\label{eq:planar-body-coordinates}
+\end{equation}
+The corresponding velocity and acceleration vectors use the same ordering. For the five-link example, $n=5$ and $\vect{q}\in\R^{15}$. The mass matrix for center-of-mass coordinates is block diagonal by body, with each planar block $\operatorname{diag}(m_i,m_i,I_i)$; it is constant for rigid bodies with fixed mass properties.
+
+The Cartesian coordinates are redundant for a mechanism whose motion has fewer degrees of freedom than coordinates. This is useful in a closed chain because every body pose is represented directly and the joint geometry can be imposed with equations. Redundancy is handled later using $\Phi(\vect{q})=\vect{0}$ and its Jacobian.
+
+\section{Reference frames and planar rotation}
+
+World coordinates use $x$ to the right and $y$ upward. Body orientation $\theta_i$ is measured counterclockwise from the world $x$ axis. The rotation taking a body-frame vector to world coordinates is
+\begin{equation}
+	A(\theta_i)=
+	\begin{bmatrix}
+		\cos\theta_i & -\sin\theta_i\\
+		\sin\theta_i & \cos\theta_i
+	\end{bmatrix}.
+	\label{eq:planar-rotation}
+\end{equation}
+This body-orientation convention differs from Chapter~4's pendulum angles, which are measured clockwise from the downward vertical. Define each convention where it is used; do not reuse a symbol with a changed geometric meaning without stating the change.
+
+\section{World position and velocity of an attachment point}
+
+Let $\vect{s}_i=[s_{ix},s_{iy}]^T$ be a point fixed in body $i$, expressed in body coordinates. Its world position is
+\begin{equation}
+	\vect{r}_i(\vect{q}_i)
+	= \begin{bmatrix}x_i\\y_i\end{bmatrix}+A(\theta_i)\vect{s}_i.
+	\label{eq:body-point-position}
+\end{equation}
+Define the planar quarter-turn matrix
+\begin{equation}
+	S=\begin{bmatrix}0&-1\\1&0\end{bmatrix}.
+	\label{eq:planar-quarter-turn}
+\end{equation}
+Since $\partial A/\partial\theta_i=SA$, differentiating~\eqref{eq:body-point-position} gives
+\begin{equation}
+	\dot{\vect{r}}_i
+	=\begin{bmatrix}\dot x_i\\\dot y_i\end{bmatrix}
+	 +\dot\theta_i S A(\theta_i)\vect{s}_i.
+	\label{eq:body-point-velocity}
+\end{equation}
+Thus the point's Jacobian block with respect to its body's coordinates is
+\begin{equation}
+	\frac{\partial\vect{r}_i}{\partial\vect{q}_i}
+	=\begin{bmatrix}I_2 & SA(\theta_i)\vect{s}_i\end{bmatrix}.
+	\label{eq:body-point-jacobian}
+\end{equation}
+This block is the kinematic building unit for the pin constraints in Chapter~5. For a pin between bodies $a$ and $b$, the two world attachment points are equated; the corresponding Jacobian blocks enter with opposite signs.
+
+\section{Double pendulum: forward and inverse kinematics}
+
+Use the angle convention of Chapter~4: $\theta_1$ and $\theta_2$ are absolute angles measured clockwise from downward vertical, while world $y$ points upward. These are open-chain angles, not the Cartesian body orientations measured from world $x$ above. With fixed pivot $O=(0,0)$, let $C$ be the inter-mass joint and $T$ the tip mass position. Forward kinematics maps the two angles to these points:
+\begin{equation}
+\begin{aligned}
+C(\theta_1)&=\begin{bmatrix}l_1\sin\theta_1\\-l_1\cos\theta_1\end{bmatrix},\\
+T(\theta_1,\theta_2)&=C(\theta_1)
++\begin{bmatrix}l_2\sin\theta_2\\-l_2\cos\theta_2\end{bmatrix}.
+\end{aligned}
+\label{eq:double-pendulum-forward-kinematics}
+\end{equation}
+Differentiating with respect to the coordinates gives the tip Jacobian and velocity relation
+\begin{equation}
+J_T(\vect q)=\frac{\partial T}{\partial\vect q}
+=\begin{bmatrix}
+l_1\cos\theta_1 & l_2\cos\theta_2\\
+l_1\sin\theta_1 & l_2\sin\theta_2
+\end{bmatrix},
+\qquad \dot T=J_T\dot{\vect q},
+\qquad \det J_T=l_1l_2\sin(\theta_2-\theta_1).
+\label{eq:double-pendulum-forward-jacobian}
+\end{equation}
+The determinant vanishes when the two rods are collinear; at those extended or folded poses, an instantaneous tip velocity cannot be produced uniquely by arbitrary angle rates.
+
+If both mass positions are measured, inverse kinematics is direct. For measured $C=(x_1,y_1)$ and $T=(x_2,y_2)$, the model requires $\|C\|=l_1$ and $\|T-C\|=l_2$, and then
+\begin{equation}
+\theta_1=\operatorname{atan2}(x_1,-y_1),
+\qquad
+\theta_2=\operatorname{atan2}(x_2-x_1,-(y_2-y_1)).
+\label{eq:double-pendulum-inverse-from-both-masses}
+\end{equation}
+Here $\operatorname{atan2}(y,x)$ denotes the quadrant-aware angle whose cosine and sine are proportional to $(x,y)$; the swapped arguments above follow from $x=l\sin\theta$, $y=-l\cos\theta$.
+
+Often only a desired tip $T=(x,y)$ is given. Set $d=\sqrt{x^2+y^2}$ and define the unit vector $\vect u=T/d$ from the pivot to the target, with perpendicular $\vect n=[-u_y,u_x]^T$. The first joint $C$ lies on both circles: radius $l_1$ about $O$ and radius $l_2$ about $T$. Resolve $C$ into components parallel and perpendicular to $\vect u$:
+\begin{equation}
+a=\frac{l_1^2-l_2^2+d^2}{2d},
+\qquad
+h=\sqrt{l_1^2-a^2},
+\qquad
+C=a\vect u+\sigma h\vect n,\quad \sigma\in\{-1,+1\}.
+\label{eq:double-pendulum-inverse-circle-intersection}
+\end{equation}
+Indeed $C\cdot\vect u=a$ and $\|C\|^2=a^2+h^2=l_1^2$; also $\|T-C\|^2=(d-a)^2+h^2=l_2^2$. The two signs describe the two elbow configurations. For $d>0$, a real solution exists only when $|l_1-l_2|\le d\le l_1+l_2$; equality is a collinear singular configuration where the two branches meet. If $d=0$ and $l_1=l_2$, the target is the pivot and every first-link direction is possible, so the unit-vector formula is undefined and the inverse is non-unique. For either nondegenerate intersection, recover
+\begin{equation}
+\theta_1=\operatorname{atan2}(C_x,-C_y),
+\qquad
+\theta_2=\operatorname{atan2}(x-C_x,-(y-C_y)).
+\label{eq:double-pendulum-inverse-angles}
+\end{equation}
+
+\section{Five-link loop: Cartesian and reduced kinematics}
+
+For the closed-chain model, the book's dynamics coordinates remain the redundant Cartesian body poses $\vect q_i=[x_i,y_i,\theta_i]^T$ from~\eqref{eq:planar-body-coordinates}. The forward map for any body-fixed pin $\vect s_i$ is~\eqref{eq:body-point-position}; its velocity and Jacobian are~\eqref{eq:body-point-velocity}--\eqref{eq:body-point-jacobian}. For pin $P_{ab}$, denote the attachment coordinates on the two bodies by $\vect s_a^{ab}$ and $\vect s_b^{ab}$. Its world gap is
+\begin{equation}
+\vect\Phi_{ab}(\vect q)=
+\left(\vect p_a+A(\theta_a)\vect s_a^{ab}\right)
+-\left(\vect p_b+A(\theta_b)\vect s_b^{ab}\right),
+\qquad \vect p_i=[x_i,y_i]^T.
+\label{eq:five-link-forward-pin-gap}
+\end{equation}
+Forward kinematics evaluates all five pairs of pin positions from the 15 body coordinates. A physically closed configuration is one for which every gap is zero. For a pin against ground, the ground attachment is a fixed world point and its term replaces the second body point. Chapter~5 assembles these gaps into $\Phi(\vect q)=\vect 0$; the equations here define the geometric map, not a new coordinate choice for the dynamics.
+
+The same loop can also be parameterized geometrically by two link orientations. This reduced parameterization is useful for position analysis and inverse-kinematics intuition; it does not replace the Cartesian coordinates in the constrained dynamics. Use a loop-local frame with $P_{34}=(0,0)$ and $P_{45}=(l_4,0)$, and define $\vect e(\alpha)=[\cos\alpha,\sin\alpha]^T$. Choose $\alpha_1$ along link 1 from $P_{51}$ to $P_{12}$ and $\alpha_5$ along link 5 from $P_{45}$ to $P_{51}$. The first two moving pins follow directly:
+\begin{equation}
+P_{51}=P_{45}+l_5\vect e(\alpha_5),
+\qquad
+P_{12}=P_{51}+l_1\vect e(\alpha_1).
+\label{eq:five-link-forward-independent-pins}
+\end{equation}
+Define $\vect n(\alpha)=[-\sin\alpha,\cos\alpha]^T=d\vect e/d\alpha$. The target pin velocity and its Jacobian with respect to the independent angle rates are
+\begin{equation}
+\dot P_{12}=J_{12}\begin{bmatrix}\dot\alpha_1\\\dot\alpha_5\end{bmatrix},
+\qquad
+J_{12}=\begin{bmatrix}l_1\vect n(\alpha_1)&l_5\vect n(\alpha_5)\end{bmatrix},
+\qquad
+\det J_{12}=l_1l_5\sin(\alpha_5-\alpha_1).
+\label{eq:five-link-independent-jacobian}
+\end{equation}
+The target map loses local invertibility when links 1 and 5 are collinear.
+The remaining pin $P_{23}$ must be at distance $l_2$ from $P_{12}$ and distance $l_3$ from grounded pin $P_{34}$. Set $d=\|P_{34}-P_{12}\|$, $\vect u=(P_{34}-P_{12})/d$, and $\vect n=[-u_y,u_x]^T$. Circle intersection gives
+\begin{equation}
+a=\frac{l_2^2-l_3^2+d^2}{2d},
+\qquad h=\sqrt{l_2^2-a^2},
+\qquad P_{23}=P_{12}+a\vect u+\sigma_{23}h\vect n,
+\quad \sigma_{23}\in\{-1,+1\}.
+\label{eq:five-link-forward-loop-closure}
+\end{equation}
+The formula gives $\|P_{23}-P_{12}\|^2=a^2+h^2=l_2^2$ and $\|P_{34}-P_{23}\|^2=(d-a)^2+h^2=l_3^2$. For $d>0$, a real assembly requires $|l_2-l_3|\le d\le l_2+l_3$. At equality, the two circle branches meet and the middle links are collinear. If $d=0$ and $l_2=l_3$, every point on the common circle is an intersection, a degenerate singular case not covered by the formula. Each branch sign otherwise selects one of the two possible assemblies of links 2 and 3.
+
+Differentiate the two fixed-length conditions to obtain the middle pin velocity. Let $\vect d_2=P_{23}-P_{12}$ and $\vect d_3=P_{23}-P_{34}$. Since $P_{34}$ is fixed,
+\begin{equation}
+\begin{bmatrix}\vect d_2^T\\\vect d_3^T\end{bmatrix}\dot P_{23}
+=\begin{bmatrix}\vect d_2^T\dot P_{12}\\0\end{bmatrix}.
+\label{eq:five-link-middle-pin-velocity}
+\end{equation}
+This solve determines $\dot P_{23}$ when the middle links are not collinear. Its matrix determinant is the signed-area factor $\vect d_2\times\vect d_3$, which vanishes when the two middle links straighten or fold.
+
+To convert the pins back to the 15 Cartesian body coordinates used by the dynamics, each link center is the midpoint of its ordered endpoints and its body angle is the direction from its left pin to its right pin:
+\begin{equation}
+\begin{aligned}
+\vect p_1&=\tfrac12(P_{51}+P_{12}), &\theta_1&=\operatorname{atan2}((P_{12}-P_{51})_y,(P_{12}-P_{51})_x),\\
+\vect p_2&=\tfrac12(P_{12}+P_{23}), &\theta_2&=\operatorname{atan2}((P_{23}-P_{12})_y,(P_{23}-P_{12})_x),\\
+\vect p_3&=\tfrac12(P_{23}+P_{34}), &\theta_3&=\operatorname{atan2}((P_{34}-P_{23})_y,(P_{34}-P_{23})_x),\\
+\vect p_4&=\tfrac12(P_{34}+P_{45}), &\theta_4&=0,\\
+\vect p_5&=\tfrac12(P_{45}+P_{51}), &\theta_5&=\operatorname{atan2}((P_{51}-P_{45})_y,(P_{51}-P_{45})_x).
+\end{aligned}
+\label{eq:five-link-pin-to-cartesian-poses}
+\end{equation}
+Thus $(\alpha_1,\alpha_5,\sigma_{23})$ parameterizes a closed pose, while the constructed 15-vector still obeys the five pin closures and fixed-link pose. The geometric assembly fails at the circle-intersection limits, where $h=0$ and the two branches merge.
+
+For inverse position analysis, prescribe a target location $T=P_{12}$ for the pin shared by links 1 and 2. The other two unknown pins are found independently by intersecting two pairs of circles:
+\begin{itemize}
+\item $P_{23}$ is the intersection of radius-$l_2$ circle centered at $T$ and radius-$l_3$ circle centered at $P_{34}$.
+\item $P_{51}$ is the intersection of radius-$l_1$ circle centered at $T$ and radius-$l_5$ circle centered at $P_{45}$.
+\end{itemize}
+For either pair of centers $C_a,C_b$ and radii $r_a,r_b$, let $d=\|C_b-C_a\|$, $\vect u=(C_b-C_a)/d$, $\vect n=[-u_y,u_x]^T$, and
+\begin{equation}
+a=\frac{r_a^2-r_b^2+d^2}{2d},
+\qquad h=\sqrt{r_a^2-a^2},
+\qquad P=C_a+a\vect u+\sigma h\vect n,\quad \sigma\in\{-1,+1\}.
+\label{eq:five-link-inverse-circle-intersection}
+\end{equation}
+Apply this once for $P_{23}$ and once for $P_{51}$. Both center distances must be nonzero for the formula. The first pair is feasible only if $|l_2-l_3|\le\|P_{34}-T\|\le l_2+l_3$; the second only if $|l_1-l_5|\le\|P_{45}-T\|\le l_1+l_5$. At a zero center distance with equal radii, the circle has infinitely many intersections and the pose is degenerate. Otherwise, the independent signs can produce up to four assemblies. For each feasible pair of intersections, recover all body poses using~\eqref{eq:five-link-pin-to-cartesian-poses}. This is inverse position kinematics for the specified target pin; a different task point or prescribed orientation gives a different target condition and may have a different number of solutions.
+
+\section{Summary}
+
+Forward kinematics maps body poses or independent link coordinates to world points. Inverse kinematics recovers joint angles or compatible loop assemblies from target positions and must account for feasibility and branch multiplicity. The double pendulum provides the simple two-link case; the five-link construction makes the closed-loop assembly branches explicit while retaining Cartesian body coordinates for dynamics. The next chapter differentiates the five pin gaps and derives the loop Jacobian and its acceleration-level terms.
+
+\ifSubfilesClassLoaded{\backmatter\bookbibliography}{}
+\end{document}

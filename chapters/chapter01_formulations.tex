@@ -1,0 +1,414 @@
+\documentclass[../main.tex]{subfiles}
+\begin{document}
+\chapter{Dynamics Formulations}
+\label{chap:dynamics-formulations}
+
+\section{State of the Art}
+Classical analytical mechanics and multibody dynamics use several equivalent formulations, each organizing coordinates, forces, and constraints differently \cite{goldstein2002classical,shabana2013dynamics}. This focused review uses these foundational texts to distinguish the formulations needed for this book; it does not compare current software packages or claim an exhaustive review of recent method-performance studies. Bibliographic scope checked 2026-10-07.
+
+\section{The same mechanics, different formulations}
+
+The governing physical system does not change when its equations are written using Newton--Euler balances, Lagrange's equations, virtual work, Kane's method, or Hamiltonian variables. What changes is the choice of variables and how applied forces, ideal reactions, and constraints enter the equations. This distinction matters especially in a closed chain: a convenient formulation can expose reaction forces directly, eliminate them through admissible virtual motion, or retain them as multipliers.
+
+\subsection{Newton--Euler equations}
+
+For each rigid body, Newton--Euler mechanics applies the balance of linear momentum and angular momentum. In planar motion these include two translational equations and one moment equation per body. Joint forces and moments appear explicitly as unknown reactions, so free-body diagrams and load paths are easy to interpret. The cost is that internal reactions must be introduced consistently for every joint; in a closed loop, the resulting body equations and reaction unknowns are coupled around the loop.
+
+This formulation is attractive when individual joint loads are a primary output or when the free-body structure is simple. It becomes algebraically cumbersome when many interconnected bodies create numerous reaction components and loop equations.
+
+\subsection{Lagrangian equations}
+
+Choose generalized coordinates $\vect{q}$, form kinetic and potential energies $T$ and $V$, and define $L=T-V$. For each coordinate, the Euler--Lagrange equation is
+\begin{equation}
+	\frac{d}{dt}\left(\frac{\partial L}{\partial\dot q_i}\right)
+	-\frac{\partial L}{\partial q_i}=Q_i,
+	\label{eq:chapter1-euler-lagrange}
+\end{equation}
+where $Q_i$ is the generalized applied force associated with $q_i$. With independent coordinates, ideal constraint reactions can often be eliminated because they do no virtual work in admissible motions. With redundant coordinates, constraints can instead be retained explicitly and their reactions represented by Lagrange multipliers. The energy-based procedure is systematic, but deriving a useful coordinate set and evaluating symbolic expressions still require care.
+
+Chapter 4 uses this formulation for the open-chain double pendulum, where two angles describe the configuration directly. The five-link closed-chain model instead uses Cartesian body coordinates and explicit pin constraints; its multipliers are retained in the constrained equations.
+
+\subsection{Virtual work and d'Alembert's principle}
+
+The principle of virtual work states that ideal constraint forces do no work for virtual displacements compatible with the constraints. d'Alembert's principle applies the same idea to dynamics by including inertial forces in the virtual-work balance. With independent admissible virtual displacements, ideal reactions can be removed from the equations. This gives a useful conceptual route to reduced equations and connects force balance with the variational formulation, but constructing admissible motions may be difficult for complicated closed loops.
+
+\subsection{Kane's method}
+
+Kane's method organizes equations using generalized speeds and partial velocities. It can produce compact equations for systems where generalized speeds are convenient or do not coincide simply with coordinate derivatives. Its bookkeeping can be effective for larger multibody systems, although readers must learn its speed and partial-velocity notation and carefully relate generalized speeds to configuration coordinates.
+
+\subsection{Hamiltonian formulation}
+
+Hamiltonian mechanics uses generalized positions and conjugate momenta, giving first-order evolution equations in phase space. It highlights canonical structure and is useful in geometric mechanics and long-term energy analysis. Constraints still require explicit treatment or reduction, and the position--momentum formulation is not automatically simpler for the constrained rigid-body examples in this book.
+
+\section{How to choose a formulation}
+
+The following comparison is qualitative: the best choice depends on the desired outputs, coordinate structure, and constraint treatment.
+
+\begin{center}
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.14\textwidth}@{}>{\raggedright\arraybackslash}p{0.16\textwidth}@{}>{\raggedright\arraybackslash}p{0.20\textwidth}@{}>{\raggedright\arraybackslash}p{0.17\textwidth}@{}>{\raggedright\arraybackslash}p{0.17\textwidth}@{}}
+\toprule
+Method & Starting principle & Typical equations or unknowns & Strength & Tradeoff \\
+\midrule
+Newton--Euler & Linear and angular momentum balances & Accelerations and joint-reaction forces & Reactions and load paths are explicit & Loop reactions are coupled \\
+Lagrange & Kinetic and potential energy & Generalized-coordinate equations; multipliers if redundant & Systematic and symbolic-friendly & Coordinates and constraints matter \\
+Virtual work & d'Alembert balance over admissible variations & Projected force balance; ideal reactions cancel & Avoids solving for ideal reactions & Admissible variations can be difficult \\
+Kane & Generalized speeds and partial velocities & Generalized active and inertial forces & Can produce compact equations & Requires specialized bookkeeping \\
+Hamiltonian & Legendre transform to conjugate momenta & First-order position--momentum equations & Exposes phase-space structure & Constraints need extra treatment \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{One double pendulum, five formulations}
+
+To compare the methods directly, use the same unforced open-chain model as Chapter~4: point masses $m_1$ and $m_2$ joined by massless rigid rods of lengths $l_1$ and $l_2$, with the first pivot fixed and gravity acting downward. The rods and pins are ideal, and no actuator torque or other applied force is included in this comparison. This restriction matters: a prescribed joint torque requires an actuator model and corresponding moment balances for the links, beyond the axial-force model used here. Use absolute angles $\theta_1$ and $\theta_2$, positive clockwise from the downward vertical, and let world $y$ point upward. Define $\vect{q}=[\theta_1,\theta_2]^T$ and $\delta=\theta_1-\theta_2$. Figure~\ref{fig:chapter1-double-pendulum-coordinates} separates these generalized coordinates from the fixed model parameters. Its numerical values illustrate the simulation example; all derivations below retain the parameters symbolically. The mass positions are
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.94\textwidth]{double_pendulum_geometry.png}
+\caption{Double-pendulum geometry and notation. The generalized coordinates are $\theta_1$ and $\theta_2$; $m_1,m_2,l_1,l_2$, and $g$ are fixed model parameters. The displayed SI values are the numerical example values, not substitutions used in the symbolic derivations.}
+\label{fig:chapter1-double-pendulum-coordinates}
+\end{figure}
+\begin{equation}
+\vect{r}_1=l_1\begin{bmatrix}\sin\theta_1\\-\cos\theta_1\end{bmatrix},
+\qquad
+\vect{r}_2=\vect{r}_1+l_2\begin{bmatrix}\sin\theta_2\\-\cos\theta_2\end{bmatrix}.
+\label{eq:chapter1-double-pendulum-positions}
+\end{equation}
+Let $\vect{e}_i=[\sin\theta_i,-\cos\theta_i]^T$ point from the upper end of rod $i$ toward its lower end, and let $\vect{n}_i=[\cos\theta_i,\sin\theta_i]^T$. These are orthogonal unit vectors, with $\partial\vect{e}_i/\partial\theta_i=\vect{n}_i$ and $\partial\vect{n}_i/\partial\theta_i=-\vect{e}_i$. Thus $\dot{\vect{e}}_i=\vect{n}_i\dot\theta_i$ and $\dot{\vect{n}}_i=-\vect{e}_i\dot\theta_i$. Differentiating the positions once gives $\dot{\vect{r}}_1=l_1\vect{n}_1\dot\theta_1$ and $\dot{\vect{r}}_2=\dot{\vect{r}}_1+l_2\vect{n}_2\dot\theta_2$; differentiating again gives
+\begin{equation}
+\begin{aligned}
+\ddot{\vect{r}}_1 &= l_1\left(\vect{n}_1\ddot\theta_1-\vect{e}_1\dot\theta_1^2\right),\\
+\ddot{\vect{r}}_2 &= \ddot{\vect{r}}_1+l_2\left(\vect{n}_2\ddot\theta_2-\vect{e}_2\dot\theta_2^2\right).
+\end{aligned}
+\label{eq:chapter1-double-pendulum-accelerations}
+\end{equation}
+Now draw a free-body diagram for each point mass. Define $R_i$ as a signed axial force, positive in tension. Rod 1 pulls mass 1 toward its upper pin, in direction $-\vect{e}_1$. Rod 2 pulls mass 1 toward mass 2, in direction $+\vect{e}_2$, and pulls mass 2 toward mass 1, in direction $-\vect{e}_2$; these are the equal-and-opposite forces at their shared pin. Gravity is $-m_i g\vect{j}$, where $\vect{j}=[0,1]^T$ points upward. Applying $\sum\vect{F}=m\vect{a}$ separately to each mass now gives
+\begin{equation}
+\begin{aligned}
+m_1\ddot{\vect{r}}_1 &= -R_1\vect{e}_1+R_2\vect{e}_2-m_1g\vect{j},\\
+m_2\ddot{\vect{r}}_2 &= -R_2\vect{e}_2-m_2g\vect{j}.
+\end{aligned}
+\label{eq:chapter1-derived-body-balances}
+\end{equation}
+These signs can be checked directly: the $R_2\vect{e}_2$ force on mass 1 is opposite the $-R_2\vect{e}_2$ force on mass 2, and gravity has negative vertical component. Substitution of the geometric accelerations in~\eqref{eq:chapter1-double-pendulum-accelerations} produces four scalar equations in $\ddot\theta_1,\ddot\theta_2,R_1,R_2$. Newton--Euler retains all four unknowns; a reduced-coordinate method eliminates the reactions and later recovers them if needed. The next subsections spell out these different operations rather than treating the balances as unexplained results.
+
+\subsection{Newton--Euler: retain the rod reactions}
+
+Substitute~\eqref{eq:chapter1-double-pendulum-accelerations} into~\eqref{eq:chapter1-derived-body-balances}. Move all forces in each balance to the left and define
+\begin{equation}
+\vect f_1=m_1\ddot{\vect r}_1+R_1\vect e_1-R_2\vect e_2+m_1g\vect j,
+\qquad
+\vect f_2=m_2\ddot{\vect r}_2+R_2\vect e_2+m_2g\vect j.
+\label{eq:chapter1-newton-residual-definition}
+\end{equation}
+Both residuals are zero by Newton's second law. Differentiate the geometry and take the needed dot products:
+\begin{equation}
+\begin{aligned}
+\vect n_1\cdot\ddot{\vect r}_1&=l_1\ddot\theta_1,\\
+\vect n_1\cdot\ddot{\vect r}_2&=l_1\ddot\theta_1+l_2\cos\delta\,\ddot\theta_2
++l_2\sin\delta\,\dot\theta_2^2,\\
+\vect n_2\cdot\ddot{\vect r}_2&=l_1\cos\delta\,\ddot\theta_1
+-l_1\sin\delta\,\dot\theta_1^2+l_2\ddot\theta_2.
+\end{aligned}
+\label{eq:chapter1-newton-acceleration-projections}
+\end{equation}
+To eliminate internal forces, project $\vect f_1+\vect f_2$ along $l_1\vect n_1$; rod-2 forces cancel by action and reaction, and rod 1 is perpendicular to $\vect n_1$. Project $\vect f_2$ along $l_2\vect n_2$; rod 2 is perpendicular to $\vect n_2$. Inserting~\eqref{eq:chapter1-newton-acceleration-projections} and $\vect n_i\cdot\vect j=\sin\theta_i$ gives
+\begin{equation}
+\begin{aligned}
+&(m_1+m_2)l_1^2\ddot\theta_1+m_2l_1l_2\cos\delta\,\ddot\theta_2
++m_2l_1l_2\sin\delta\,\dot\theta_2^2
++(m_1+m_2)gl_1\sin\theta_1=0,\\
+&m_2l_1l_2\cos\delta\,\ddot\theta_1+m_2l_2^2\ddot\theta_2
+-m_2l_1l_2\sin\delta\,\dot\theta_1^2
++m_2gl_2\sin\theta_2=0.
+\end{aligned}
+\label{eq:chapter1-newton-projected-equations}
+\end{equation}
+These are the two angular equations; they are the unforced specialization of the mass-matrix equation derived below. After solving them for $\ddot\theta_1,\ddot\theta_2$, recover $R_2$ by projecting the second-body balance along $\vect e_2$, and recover $R_1$ by projecting the first-body balance along $\vect e_1$:
+\begin{equation}
+\begin{aligned}
+R_2&=m_2\left(l_1\sin\delta\,\ddot\theta_1
++l_1\cos\delta\,\dot\theta_1^2+l_2\dot\theta_2^2+g\cos\theta_2\right),\\
+R_1&=m_1l_1\dot\theta_1^2+R_2\cos\delta+m_1g\cos\theta_1.
+\end{aligned}
+\label{eq:chapter1-newton-radial-reactions}
+\end{equation}
+The method's final body-level equations are the original balances, now with the recovered accelerations and reactions substituted:
+\begin{equation}
+\begin{aligned}
+m_1\ddot{\vect{r}}_1 &= -R_1\vect{e}_1+R_2\vect{e}_2-m_1g\vect{j},\\
+m_2\ddot{\vect{r}}_2 &= -R_2\vect{e}_2-m_2g\vect{j}.
+\end{aligned}
+\label{eq:chapter1-newton-euler-common-form}
+\end{equation}
+
+\subsection{Lagrange: derive directly in angles}
+
+The two angles satisfy the rod geometry automatically, so no rod reactions are needed as unknowns. The velocities from~\eqref{eq:chapter1-double-pendulum-accelerations} before differentiation are $\dot{\vect r}_1=l_1\vect n_1\dot\theta_1$ and $\dot{\vect r}_2=l_1\vect n_1\dot\theta_1+l_2\vect n_2\dot\theta_2$. Since $\vect n_i\cdot\vect n_i=1$ and $\vect n_1\cdot\vect n_2=\cos\delta$, their squared speeds are
+\begin{equation}
+\begin{aligned}
+\dot{\vect r}_1\cdot\dot{\vect r}_1 &= l_1^2\dot\theta_1^2,\\
+\dot{\vect r}_2\cdot\dot{\vect r}_2 &= l_1^2\dot\theta_1^2+l_2^2\dot\theta_2^2
++2l_1l_2\cos\delta\,\dot\theta_1\dot\theta_2.
+\end{aligned}
+\label{eq:chapter1-double-pendulum-speed-squares}
+\end{equation}
+Substitute these into $T=\frac12m_1\dot{\vect r}_1^2+\frac12m_2\dot{\vect r}_2^2$. The heights from the position definitions are $y_1=-l_1\cos\theta_1$ and $y_2=-l_1\cos\theta_1-l_2\cos\theta_2$; use $V=m_1gy_1+m_2gy_2$. The resulting energies are
+\begin{equation}
+\begin{aligned}
+T &= \frac12(m_1+m_2)l_1^2\dot\theta_1^2
++\frac12m_2l_2^2\dot\theta_2^2
++m_2l_1l_2\dot\theta_1\dot\theta_2\cos\delta,\\
+V &= -(m_1+m_2)gl_1\cos\theta_1-m_2gl_2\cos\theta_2.
+\end{aligned}
+\label{eq:chapter1-double-pendulum-energies}
+\end{equation}
+Set $L=T-V$. Since $\delta=\theta_1-\theta_2$, its time derivative is $\dot\delta=\dot\theta_1-\dot\theta_2$. The derivatives in the Euler--Lagrange equations are
+\begin{equation}
+\begin{aligned}
+\frac{d}{dt}\frac{\partial L}{\partial\dot\theta_1}
+&=(m_1+m_2)l_1^2\ddot\theta_1
++m_2l_1l_2\left[\ddot\theta_2\cos\delta
+-\dot\theta_2\sin\delta(\dot\theta_1-\dot\theta_2)\right],\\
+\frac{\partial L}{\partial\theta_1}
+&=-m_2l_1l_2\dot\theta_1\dot\theta_2\sin\delta
+-(m_1+m_2)gl_1\sin\theta_1,\\
+\frac{d}{dt}\frac{\partial L}{\partial\dot\theta_2}
+&=m_2l_2^2\ddot\theta_2
++m_2l_1l_2\left[\ddot\theta_1\cos\delta
+-\dot\theta_1\sin\delta(\dot\theta_1-\dot\theta_2)\right],\\
+\frac{\partial L}{\partial\theta_2}
+&=m_2l_1l_2\dot\theta_1\dot\theta_2\sin\delta
+-m_2gl_2\sin\theta_2.
+\end{aligned}
+\label{eq:chapter1-lagrange-derivatives}
+\end{equation}
+For coordinate $i$, subtract $\partial L/\partial\theta_i$ from $d(\partial L/\partial\dot\theta_i)/dt$. In the first equation the mixed product $\dot\theta_1\dot\theta_2\sin\delta$ cancels, leaving the $\dot\theta_2^2$ term; in the second it cancels leaving $-\dot\theta_1^2$. Thus the two Euler--Lagrange equations are
+\begin{equation}
+\begin{aligned}
+&(m_1+m_2)l_1^2\ddot\theta_1+m_2l_1l_2\cos\delta\,\ddot\theta_2
++m_2l_1l_2\sin\delta\,\dot\theta_2^2
++(m_1+m_2)gl_1\sin\theta_1=0,\\
+&m_2l_1l_2\cos\delta\,\ddot\theta_1+m_2l_2^2\ddot\theta_2
+-m_2l_1l_2\sin\delta\,\dot\theta_1^2
++m_2gl_2\sin\theta_2=0.
+\end{aligned}
+\label{eq:chapter1-lagrange-expanded-eom}
+\end{equation}
+Collecting the acceleration coefficients defines the mass matrix and the remaining terms define the bias vector:
+\begin{equation}
+M=\begin{bmatrix}
+(m_1+m_2)l_1^2 & m_2l_1l_2\cos\delta\\
+m_2l_1l_2\cos\delta & m_2l_2^2
+\end{bmatrix},\qquad
+\vect{h}=\begin{bmatrix}
+m_2l_1l_2\sin\delta\,\dot\theta_2^2+(m_1+m_2)gl_1\sin\theta_1\\
+-m_2l_1l_2\sin\delta\,\dot\theta_1^2+m_2gl_2\sin\theta_2
+\end{bmatrix}.
+\label{eq:chapter1-double-pendulum-mass-bias}
+\end{equation}
+For this unforced example the reduced angular equations are
+\begin{equation}
+M(\vect{q})\ddot{\vect{q}}+\vect{h}(\vect{q},\dot{\vect{q}})
+=\vect{0}.
+\label{eq:chapter1-lagrange-reduced-eom}
+\end{equation}
+Solve for $\ddot{\vect{q}}$ and substitute into~\eqref{eq:chapter1-double-pendulum-accelerations}. The lower-link axial balance gives $R_2$; the upper-link axial balance then gives $R_1$:
+\begin{equation}
+\begin{aligned}
+R_2&=m_2\left(l_1\sin\delta\,\ddot\theta_1
++l_1\cos\delta\,\dot\theta_1^2+l_2\dot\theta_2^2+g\cos\theta_2\right),\\
+R_1&=m_1l_1\dot\theta_1^2+R_2\cos\delta+m_1g\cos\theta_1.
+\end{aligned}
+\label{eq:chapter1-lagrange-reactions}
+\end{equation}
+Putting these reactions back into Newton's second-law equations recovers the body balances:
+\begin{equation}
+\begin{aligned}
+m_1\ddot{\vect{r}}_1 &= -R_1\vect{e}_1+R_2\vect{e}_2-m_1g\vect{j},\\
+m_2\ddot{\vect{r}}_2 &= -R_2\vect{e}_2-m_2g\vect{j}.
+\end{aligned}
+\label{eq:chapter1-double-pendulum-common-eom}
+\end{equation}
+
+\subsection{Virtual work and d'Alembert: project onto admissible motion}
+
+For virtual angle changes $\delta\theta_1,\delta\theta_2$, the induced displacements are $\delta\vect r_1=l_1\vect n_1\delta\theta_1$ and $\delta\vect r_2=l_1\vect n_1\delta\theta_1+l_2\vect n_2\delta\theta_2$. Each ideal axial rod force is perpendicular to the compatible displacement of its endpoint, so its virtual work is zero. d'Alembert's principle says that the sum of applied-force and inertial-force virtual work is zero. Equating the independent coefficients of $\delta\theta_1$ and $\delta\theta_2$ gives
+\begin{equation}
+\begin{aligned}
+l_1\vect n_1\cdot\left(m_1\ddot{\vect r}_1+m_2\ddot{\vect r}_2
++(m_1+m_2)g\vect j\right)&=0,\\
+l_2\vect n_2\cdot\left(m_2\ddot{\vect r}_2+m_2g\vect j\right)&=0.
+\end{aligned}
+\label{eq:chapter1-virtual-work-double-pendulum}
+\end{equation}
+Substitute the geometric acceleration projections in~\eqref{eq:chapter1-newton-acceleration-projections}. Before collecting coefficients, the two scalar balances read
+\begin{equation}
+\begin{aligned}
+l_1\bigl[&(m_1+m_2)l_1\ddot\theta_1
++m_2l_2\cos\delta\,\ddot\theta_2
++m_2l_2\sin\delta\,\dot\theta_2^2
++(m_1+m_2)g\sin\theta_1\bigr]&=0,\\
+l_2m_2\bigl[&l_1\cos\delta\,\ddot\theta_1
+-l_1\sin\delta\,\dot\theta_1^2
++l_2\ddot\theta_2+g\sin\theta_2\bigr]&=0.
+\end{aligned}
+\label{eq:chapter1-virtual-work-uncollected}
+\end{equation}
+Divide the first line by $l_1$ and the second by $l_2m_2$, then collect terms. The resulting equations are
+\begin{equation}
+\begin{aligned}
+&(m_1+m_2)l_1^2\ddot\theta_1+m_2l_1l_2\cos\delta\,\ddot\theta_2
++m_2l_1l_2\sin\delta\,\dot\theta_2^2
++(m_1+m_2)gl_1\sin\theta_1=0,\\
+&m_2l_1l_2\cos\delta\,\ddot\theta_1+m_2l_2^2\ddot\theta_2
+-m_2l_1l_2\sin\delta\,\dot\theta_1^2
++m_2gl_2\sin\theta_2=0.
+\end{aligned}
+\label{eq:chapter1-virtual-work-reduced-eom}
+\end{equation}
+These match the Lagrange equations because the virtual displacements are exactly the coordinate variations. Once they determine the angular acceleration, recover reactions using~\eqref{eq:chapter1-lagrange-reactions}; substituting these into the two body balances gives
+\begin{equation}
+\begin{aligned}
+m_1\ddot{\vect{r}}_1 &= -R_1\vect{e}_1+R_2\vect{e}_2-m_1g\vect{j},\\
+m_2\ddot{\vect{r}}_2 &= -R_2\vect{e}_2-m_2g\vect{j}.
+\end{aligned}
+\label{eq:chapter1-virtual-work-common-form}
+\end{equation}
+
+\subsection{Kane: use generalized speeds and partial velocities}
+
+Choose generalized speeds $u_1=\dot\theta_1$ and $u_2=\dot\theta_2$. Differentiating the point velocities with respect to the speeds gives the partial velocities
+\begin{equation}
+\vect v_{11}=l_1\vect n_1,\qquad
+\vect v_{21}=l_1\vect n_1,\qquad
+\vect v_{22}=l_2\vect n_2,\qquad
+\vect v_{12}=\vect 0.
+\label{eq:chapter1-kane-partial-velocities}
+\end{equation}
+Kane's generalized active force is $F_k=\sum_i\vect v_{ik}\cdot\vect F_i$ and generalized inertia force is $F_k^*=-\sum_i m_i\vect v_{ik}\cdot\ddot{\vect r}_i$. Here gravity gives $F_1=-(m_1+m_2)gl_1\sin\theta_1$ and $F_2=-m_2gl_2\sin\theta_2$. Projecting the accelerations in~\eqref{eq:chapter1-double-pendulum-accelerations} onto the partial velocities gives
+\begin{equation}
+\begin{aligned}
+F_1^*&=-\left[(m_1+m_2)l_1^2\ddot\theta_1
++m_2l_1l_2\cos\delta\,\ddot\theta_2
++m_2l_1l_2\sin\delta\,\dot\theta_2^2\right],\\
+F_2^*&=-\left[m_2l_1l_2\cos\delta\,\ddot\theta_1
++m_2l_2^2\ddot\theta_2
+-m_2l_1l_2\sin\delta\,\dot\theta_1^2\right].
+\end{aligned}
+\label{eq:chapter1-kane-double-pendulum}
+\end{equation}
+Setting $F_k+F_k^*=0$ and inserting the active forces gives the two equations explicitly:
+\begin{equation}
+\begin{aligned}
+&(m_1+m_2)l_1^2\ddot\theta_1+m_2l_1l_2\cos\delta\,\ddot\theta_2
++m_2l_1l_2\sin\delta\,\dot\theta_2^2
++(m_1+m_2)gl_1\sin\theta_1=0,\\
+&m_2l_1l_2\cos\delta\,\ddot\theta_1+m_2l_2^2\ddot\theta_2
+-m_2l_1l_2\sin\delta\,\dot\theta_1^2
++m_2gl_2\sin\theta_2=0.
+\end{aligned}
+\label{eq:chapter1-kane-reduced-equations}
+\end{equation}
+These match the virtual-work equations term by term. Kane's method likewise eliminates ideal rod reactions from the acceleration solve. After solving for the accelerations, use~\eqref{eq:chapter1-lagrange-reactions} to recover those reactions; the resulting body-level force balances are
+\begin{equation}
+\begin{aligned}
+m_1\ddot{\vect{r}}_1 &= -R_1\vect{e}_1+R_2\vect{e}_2-m_1g\vect{j},\\
+m_2\ddot{\vect{r}}_2 &= -R_2\vect{e}_2-m_2g\vect{j}.
+\end{aligned}
+\label{eq:chapter1-kane-common-form}
+\end{equation}
+
+\subsection{Hamiltonian: evolve positions and momenta}
+
+Starting from the Lagrange result, define conjugate momenta by $\vect p=\partial L/\partial\dot{\vect q}=M(\vect q)\dot{\vect q}$. Written componentwise,
+\begin{equation}
+\begin{aligned}
+p_1&=(m_1+m_2)l_1^2\dot\theta_1+m_2l_1l_2\cos\delta\,\dot\theta_2,\\
+p_2&=m_2l_1l_2\cos\delta\,\dot\theta_1+m_2l_2^2\dot\theta_2.
+\end{aligned}
+\label{eq:chapter1-double-pendulum-momenta}
+\end{equation}
+The determinant is $D=\det M=m_2l_1^2l_2^2(m_1+m_2\sin^2\delta)>0$ for positive masses and lengths, so the Legendre transform is invertible. The Hamiltonian $\mathcal H=\vect p^T\dot{\vect q}-L$ is the total mechanical energy expressed in $(\vect q,\vect p)$:
+\begin{equation}
+\mathcal{H}(\vect{q},\vect{p})
+=\frac{(m_2l_2^2)p_1^2-2m_2l_1l_2\cos\delta\,p_1p_2
++(m_1+m_2)l_1^2p_2^2}{2D}+V(\vect q).
+\label{eq:chapter1-double-pendulum-hamiltonian}
+\end{equation}
+Hamilton's canonical equations for this unforced model are
+\begin{equation}
+\dot{\vect{q}}=\frac{\partial\mathcal{H}}{\partial\vect{p}},
+\qquad
+\dot{\vect{p}}=-\frac{\partial\mathcal{H}}{\partial\vect{q}}.
+\label{eq:chapter1-hamilton-double-pendulum}
+\end{equation}
+The first canonical equation gives $\dot{\vect q}=M^{-1}\vect p$. In components, this solve is
+\begin{equation}
+\begin{bmatrix}\dot\theta_1\\\dot\theta_2\end{bmatrix}
+=\frac{1}{D}
+\begin{bmatrix}
+m_2l_2^2 & -m_2l_1l_2\cos\delta\\
+-m_2l_1l_2\cos\delta & (m_1+m_2)l_1^2
+\end{bmatrix}
+\begin{bmatrix}p_1\\p_2\end{bmatrix}.
+\label{eq:chapter1-hamilton-velocity-solve}
+\end{equation}
+At fixed $\vect p$, differentiating $\mathcal H=\tfrac12\vect p^TM^{-1}\vect p+V$ with respect to $q_i$ uses $\partial M^{-1}/\partial q_i=-M^{-1}M_{,i}M^{-1}$, and therefore gives $\partial\mathcal H/\partial q_i=-\tfrac12\dot{\vect q}^{T}M_{,i}\dot{\vect q}+V_{,i}$. Differentiating $\vect p=M\dot{\vect q}$ in time gives $\dot{\vect p}=M\ddot{\vect q}+\dot M\dot{\vect q}$. Substitution into Hamilton's second equation yields
+\begin{equation}
+M\ddot{\vect q}+\dot M\dot{\vect q}
+-\frac12\begin{bmatrix}
+\dot{\vect q}^{T}M_{,1}\dot{\vect q}\\
+\dot{\vect q}^{T}M_{,2}\dot{\vect q}
+\end{bmatrix}
++\nabla_{\vect q}V=\vect 0,
+\label{eq:chapter1-hamilton-reduced-eom}
+\end{equation}
+where $M_{,i}=\partial M/\partial q_i$. Let $A=m_2l_1l_2$. The two coordinate derivatives of the mass matrix are
+\begin{equation}
+M_{,1}=\begin{bmatrix}0&-A\sin\delta\\-A\sin\delta&0\end{bmatrix},
+\qquad
+M_{,2}=\begin{bmatrix}0&A\sin\delta\\A\sin\delta&0\end{bmatrix}.
+\label{eq:chapter1-hamilton-mass-derivatives}
+\end{equation}
+The chain rule gives $\dot M=M_{,1}\dot\theta_1+M_{,2}\dot\theta_2$. Substitution into the velocity-dependent term yields
+\begin{equation}
+\dot M\dot{\vect q}-\frac12
+\begin{bmatrix}
+\dot{\vect q}^{T}M_{,1}\dot{\vect q}\\
+\dot{\vect q}^{T}M_{,2}\dot{\vect q}
+\end{bmatrix}
+=\begin{bmatrix}
+A\sin\delta\,\dot\theta_2^2\\
+-A\sin\delta\,\dot\theta_1^2
+\end{bmatrix}.
+\label{eq:chapter1-hamilton-velocity-bias}
+\end{equation}
+The potential gradient is
+\begin{equation}
+\nabla_{\vect q}V=\begin{bmatrix}
+(m_1+m_2)gl_1\sin\theta_1\\m_2gl_2\sin\theta_2
+\end{bmatrix}.
+\label{eq:chapter1-hamilton-potential-gradient}
+\end{equation}
+These are exactly the velocity and gravity terms in~\eqref{eq:chapter1-double-pendulum-mass-bias}; the Hamilton equations therefore reduce to~\eqref{eq:chapter1-lagrange-expanded-eom}. Solve them for angular accelerations and use~\eqref{eq:chapter1-lagrange-reactions} to recover the axial forces. Substitution in Newton's second-law balances returns
+\begin{equation}
+\begin{aligned}
+m_1\ddot{\vect{r}}_1 &= -R_1\vect{e}_1+R_2\vect{e}_2-m_1g\vect{j},\\
+m_2\ddot{\vect{r}}_2 &= -R_2\vect{e}_2-m_2g\vect{j}.
+\end{aligned}
+\label{eq:chapter1-hamilton-common-form}
+\end{equation}
+
+Do not confuse a dynamics formulation with other modeling decisions. Minimal versus redundant coordinates are coordinate choices. ODE versus DAE describes the mathematical form presented to the solver. Explicit versus implicit integration is a time-stepping choice. These decisions interact, but they are not interchangeable names for the same choice.
+
+\section{Formulation used in this book}
+
+The book uses two examples to build the reader's intuition. Chapter 4 uses the double pendulum to demonstrate Lagrangian derivation with minimal coordinates and conversion to a first-order ODE. The five-link mechanism then uses redundant Cartesian coordinates, holonomic pin constraints, and Lagrange multipliers, producing a constrained acceleration system. This progression keeps the introductory derivation small while making the additional work required by loop closure explicit.
+
+\section{Summary}
+
+Newton--Euler, Lagrange, virtual-work, Kane, and Hamiltonian formulations describe the same underlying mechanics but expose different variables and tradeoffs. This book uses Lagrange's equations for the double-pendulum tutorial and a multiplier-based Cartesian formulation for the closed-chain case. The following mechanism and kinematics chapters define the model and coordinates before deriving its loop constraints.
+
+\ifSubfilesClassLoaded{\backmatter\bookbibliography}{}
+\end{document}

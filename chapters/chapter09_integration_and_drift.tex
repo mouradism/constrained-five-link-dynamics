@@ -1,0 +1,79 @@
+\documentclass[../main.tex]{subfiles}
+\begin{document}
+\chapter{Time Integration and Constraint Drift}
+\label{chap:integration-drift}
+
+\section{State of the Art}
+Constrained mechanical models can be integrated as differential-algebraic equations, reduced to independent coordinates, or converted into an ordinary differential equation using differentiated constraints. These choices interact with time-stepping and drift control but are not the same decision. Baumgarte's feedback method modifies the acceleration constraint, while projection methods correct a numerical state back toward the constraint manifold \cite{baumgarte1972stabilization,ascherpetzold1998}. Structure-preserving integration provides another important perspective for long-time simulation, though it does not by itself select a loop-constraint treatment \cite{hairer2006geometric}. This is a focused orientation based on these foundational sources and the SciPy 1.18.1 documentation accessed 2026-10-07, not an exhaustive review of current constrained-mechanics solvers.
+
+\section{Separate the model from the stepper}
+The ideal closed-chain equations are
+\begin{align}
+ M(q)\ddot q + J(q)^T\lambda &= Q(q,\dot q,t),\\
+ \Phi(q)&=0.
+\end{align}
+They are a differential-algebraic system. Differentiating the constraint twice yields
+\begin{equation}
+ J(q)\ddot q = -\dot J(q,\dot q)\dot q.
+\end{equation}
+Solving this acceleration-level saddle-point system at each state evaluation determines \(\ddot q\) and \(\lambda\). Returning \([\dot q,\ddot q]\) then defines an ODE for the state \(y=[q,\dot q]^T\), but integration error can still move the state away from \(\Phi=0\) and \(J\dot q=0\). It is therefore important to report both the chosen differential formulation and the time integrator.
+
+\section{Drift control}
+\subsection{Baumgarte stabilization}
+Let \(\Phi\) be the position residual. Baumgarte stabilization prescribes a damped second-order error equation,
+\begin{equation}
+ \ddot\Phi+2\zeta\omega_B\dot\Phi+\omega_B^2\Phi=0,
+\end{equation}
+where \(\zeta>0\) and \(\omega_B>0\) are numerical gains. Using \(\dot\Phi=J\dot q\) gives the stabilized acceleration constraint
+\begin{equation}
+ J\ddot q=-\dot J\dot q-2\zeta\omega_B J\dot q-\omega_B^2\Phi.
+\end{equation}
+The last two terms are feedback corrections, not physical forces or part of the ideal model. Increasing \(\omega_B\) may improve constraint-error decay but also introduce fast time scales and stiffness. Gains must be evaluated with the integration method and residuals, not selected from a universal rule.
+
+\subsection{Projection}
+Position projection solves a nonlinear correction problem that returns \(q\) toward \(\Phi(q)=0\). A local least-norm correction satisfies
+\begin{equation}
+ J(q_k)\Delta q=-\Phi(q_k),\qquad q_{k+1}=q_k+\Delta q.
+\end{equation}
+Velocity projection at a corrected position similarly solves \(J\Delta\dot q=-J\dot q\). Projection may be used for initialization or after accepted integration steps. It changes the numerical state and can affect invariants; its frequency and norm should be reported. The notebook projects only the initial position and velocity, not every later state.
+
+\subsection{Other formulations}
+Coordinate reduction eliminates dependent coordinates and constraints locally, but requires a suitable parameterization and may become singular or cumbersome as the mechanism changes configuration. Penalty methods replace exact constraints with stiff forces proportional to constraint error; they avoid explicit multipliers but introduce penalty parameters and potentially severe stiffness. A DAE solver treats algebraic constraints as part of the integrated problem and has solver-specific consistency requirements. These are formulation choices; each can be paired with different time discretizations. DAE solver theory and stiff integration are treated by Ascher and Petzold and by Hairer and Wanner \cite{ascherpetzold1998,hairerwanner1996}.
+
+\section{Time-stepper and tolerances}
+For the demonstration, the acceleration solve with Baumgarte feedback defines an ODE integrated by SciPy \texttt{solve\_ivp}. Its default method is RK45, an explicit Runge--Kutta method of order 5(4). Relative and absolute tolerances control local error estimates, while \texttt{max\_step} bounds accepted step size; \texttt{t\_eval} specifies stored output times and does not force internal steps at those points \cite{scipy_solve_ivp}. Explicit Runge--Kutta methods are appropriate first choices for non-stiff problems; the documentation recommends implicit methods such as Radau or BDF when stiffness is present. A Baumgarte gain that creates fast correction dynamics may require a stiff solver or a different drift treatment.
+
+For the five-link run, the Baumgarte settings are \(\zeta=1\) and \(\omega_B=20\,\mathrm{s}^{-1}\). The ODE solver uses relative tolerance \(10^{-8}\), absolute tolerance \(10^{-10}\), and maximum step \(0.01\,\mathrm{s}\) over ten seconds. These are reproducible example settings, not a claim of optimality. A numerical study should vary tolerances, maximum step, and stabilization gains and compare constraint errors and quantities of interest.
+
+\section{Algorithmic outline}
+\begin{enumerate}
+ \item Project approximate initial positions onto \(\Phi(q)=0\), then project velocities onto \(J(q)\dot q=0\).
+ \item At each state evaluation, compute \(\Phi\), \(J\), \(\dot J\dot q\), and the applied generalized forces.
+ \item Solve the stabilized KKT system for acceleration and multipliers.
+ \item Return the state derivative formed by the generalized velocity and the solved acceleration.
+ \item Integrate with an adaptive solver and record status, tolerances, solver evaluations, and saved output times.
+ \item Independently evaluate position and velocity constraint residuals along the trajectory; adjust the method only after inspecting those diagnostics.
+\end{enumerate}
+
+\subsection{Notebook execution sequence}
+
+The canonical five-link notebook implements the above as an ODE right-hand side. Written without language-specific syntax, one evaluation proceeds as follows:
+\begin{enumerate}
+\item Split $y=[q^T,\dot q^T]^T$ into the 15 generalized positions and 15 velocities.
+\item Evaluate $\Phi(q)$, $J(q)$, $\gamma(q,\dot q)=\dot J\dot q$, and check that $J$ has the expected rank 13. Stop with a diagnostic if the constraints lose rank.
+\item Form the stabilized lower-block right-hand side
+\begin{equation}
+r_c=-\gamma-2\zeta\omega_BJ\dot q-\omega_B^2\Phi.
+\label{eq:five-link-stabilized-rhs-ch9}
+\end{equation}
+\item Solve the block system with $M$, $J^T$, $J$, and a zero lower-right block for $\ddot q$ and $\lambda$, using $[Q_{\mathrm{total}}^T,r_c^T]^T$ as its right-hand side.
+\item Return $\dot y=[\dot q^T,\ddot q^T]^T$. The multipliers are algebraic outputs, not additional integrated state variables.
+\end{enumerate}
+
+For the recorded baseline, the initial state is projected once and then integrated for $10\,\mathrm{s}$ with RK45, relative tolerance $10^{-8}$, absolute tolerance $10^{-10}$, and maximum internal step $0.01\,\mathrm{s}$. The solver is asked to save 2,001 evenly spaced output samples; those requested times do not force its internal adaptive steps. After the run, compute $\|\Phi(q_k)\|_\infty$, $\|J(q_k)\dot q_k\|_\infty$, and grounded-pose error at every saved state, and record solver status and RHS evaluation count. The notebook then repeats the initial-value problem with tighter tolerances and with $\omega_B$ reduced from $20$ to $10\,\mathrm{s}^{-1}$, comparing residual maxima and maximum coordinate difference from baseline. These repeats are sensitivity checks, not a formal convergence proof.
+
+\section{Summary}
+Constraint enforcement, drift control, and time integration are separate choices. This book's example uses an acceleration-level KKT solve, initial projection, Baumgarte feedback, and adaptive RK45. The next chapter turns these choices into a verification and validation plan.
+
+\ifSubfilesClassLoaded{\backmatter\bookbibliography}{}
+\end{document}

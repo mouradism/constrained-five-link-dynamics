@@ -1,0 +1,90 @@
+\documentclass[../main.tex]{subfiles}
+\begin{document}
+\chapter{Python Implementations}
+\label{app:python-implementations}
+
+The listings in this appendix give the numerical kernels used by the worked examples. The notebooks contain the complete symbolic derivations, parameter definitions, residual checks, plots, and run instructions; they are the canonical executable artifacts. The snippets below are intentionally limited to the repeated solve steps, so the derivation and validation context is not buried in a long code transcription.
+
+\section{Double-pendulum acceleration}
+The notebook derives callable forms of the mass matrix and the vector \(h\) from the symbolic Euler--Lagrange residual. The numerical right-hand side solves the linear system directly rather than forming an inverse.
+
+\begin{lstlisting}[caption={First-order right-hand side for the unforced double pendulum},label={lst:double-pendulum-rhs}]
+import numpy as np
+
+def double_pendulum_rhs(time, state, mass_matrix, bias):
+	q = state[:2]
+	qdot = state[2:]
+	matrix = mass_matrix(q)
+	h = bias(q, qdot)
+	qddot = np.linalg.solve(matrix, -h)
+	return np.concatenate((qdot, qddot))
+\end{lstlisting}
+
+For applied generalized torques, replace \texttt{-h} by \texttt{torque(time, q, qdot) - h}. The notebook's symbolic check verifies the decomposition before the numerical functions are created.
+
+\section{Five-link constrained acceleration}
+For the five-link model, the mass matrix is diagonal in center-of-mass coordinates. The constraint model supplies \(\Phi\), \(J\), and \(\dot J\dot q\). The following kernel adds Baumgarte feedback only to the lower KKT block; set both gains to zero to recover the ideal acceleration constraint at a consistent state.
+
+\begin{lstlisting}[caption={KKT acceleration and reaction-force solve},label={lst:five-link-kkt}]
+import numpy as np
+
+def constrained_acceleration(q, qdot, time, model,
+							 zeta=1.0, omega=20.0):
+	phi, jac = model.constraints_and_jacobian(q)
+	bias = model.jdot_qdot(q, qdot)
+	stabilization = (
+		2.0 * zeta * omega * (jac @ qdot)
+		+ omega**2 * phi
+	)
+	constraint_rhs = -bias - stabilization
+
+	count = jac.shape[0]
+	zero = np.zeros((count, count))
+	kkt = np.block([
+		[model.mass_matrix, jac.T],
+		[jac, zero],
+	])
+	rhs = np.concatenate((
+		model.generalized_forces(q, qdot, time),
+		constraint_rhs,
+	))
+	solution = np.linalg.solve(kkt, rhs)
+	split = q.size
+	return solution[:split], solution[split:]
+\end{lstlisting}
+
+The multiplier signs correspond to the chapter convention \(\Phi_{ab}=r_a-r_b\) and \(M\ddot q+J^T\lambda=Q\). A production implementation should also report Jacobian rank and scaled linear-solve residuals and should handle rank loss explicitly, as the canonical notebook does.
+
+\section{State derivative and integration}
+The stabilized acceleration kernel defines an ODE for \(y=[q,\dot q]^T\). The code below shows the integrator call used by the five-link example; initial position and velocity projection are performed before this call.
+
+\begin{lstlisting}[caption={State derivative and adaptive integration},label={lst:five-link-integration}]
+from scipy.integrate import solve_ivp
+
+def state_derivative(time, state, model, coordinate_count):
+	q = state[:coordinate_count]
+	qdot = state[coordinate_count:]
+	qddot, _ = constrained_acceleration(
+		q, qdot, time, model
+	)
+	return np.concatenate((qdot, qddot))
+
+time_samples = np.linspace(0.0, 10.0, 2001)
+initial_state = np.concatenate((q0, qdot0))
+solution = solve_ivp(
+	lambda time, state: state_derivative(
+		time, state, system, q0.size
+	),
+	(0.0, 10.0),
+	initial_state,
+	t_eval=time_samples,
+	rtol=1e-8,
+	atol=1e-10,
+	max_step=0.01,
+)
+if not solution.success:
+	raise RuntimeError(solution.message)
+\end{lstlisting}
+
+After integration, evaluate \(\|\Phi(q)\|_\infty\), \(\|J(q)\dot q\|_\infty\), and the grounded-pose error at each saved state. Solver success alone does not establish constraint preservation or physical validity.
+\end{document}

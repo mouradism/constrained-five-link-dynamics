@@ -1,0 +1,450 @@
+\documentclass[../main.tex]{subfiles}
+\begin{document}
+\chapter{Deriving Dynamics and Preparing an ODE}
+\label{chap:derive-dynamics}
+
+\section{State of the Art}
+The derivation in this chapter follows standard analytical mechanics and uses symbolic computation as an algebraic aid, not as a replacement for the mechanical model. Goldstein et al. provide a foundational analytical-mechanics treatment; SymPy documents the symbolic differentiation and expression manipulation used by the executable derivation \cite{goldstein2002classical,meurer2017sympy}. The numerical example uses an adaptive initial-value solver whose integration method, error tolerances, and output sampling are distinct settings \cite{scipy_solve_ivp}. This focused review covers the foundations and software behavior directly used here; it does not survey recent symbolic multibody generation systems. Bibliographic and software scope checked 2026-10-07.
+
+\section{Coordinates and modeling assumptions}
+
+Consider two point masses $m_1$ and $m_2$ connected by massless rigid rods of lengths $l_1$ and $l_2$. The first pivot is fixed. Rod and pivot friction are neglected, and applied torques are initially zero. This is an \emph{open-chain} teaching example: the second mass is not connected back to ground, so there is no loop-closure constraint or Lagrange multiplier.
+
+Both angles are absolute, positive clockwise from the downward vertical; world $y$ is positive upward. The generalized coordinate and velocity vectors are
+\begin{equation}
+	\vect{q} = [\theta_1,\theta_2]^T,
+	\label{eq:double-pendulum-q}
+\end{equation}
+\begin{equation}
+	\dot{\vect{q}} = [\dot{\theta}_1,\dot{\theta}_2]^T,
+	\qquad
+	\ddot{\vect{q}} = [\ddot{\theta}_1,\ddot{\theta}_2]^T.
+	\label{eq:double-pendulum-qdot}
+\end{equation}
+The lengths, masses, and gravity are kept symbolic during derivation and assigned numerical SI values only for integration.
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=0.62\textwidth]{double_pendulum_geometry.png}
+	\caption{Double-pendulum geometry at the initial configuration. Angles are absolute and positive clockwise from the downward vertical; $y$ is positive upward.}
+	\label{fig:double-pendulum-geometry}
+\end{figure}
+Figure~\ref{fig:double-pendulum-geometry} uses the same convention as the equations and the validation notebook.
+
+\section{Deriving the equations with Lagrange's method}
+
+For a system with generalized coordinates $\vect{q}$, define the Lagrangian $L=T-V$, where $T$ is kinetic energy and $V$ is potential energy. For each coordinate $q_i$, the Euler--Lagrange equation with applied generalized force $Q_i$ is
+\begin{equation}
+	\frac{d}{dt}\left(\frac{\partial L}{\partial \dot q_i}\right)
+	- \frac{\partial L}{\partial q_i} = Q_i.
+	\label{eq:euler-lagrange}
+\end{equation}
+The derivation proceeds by expressing positions and velocities in terms of $\vect{q}$ and $\dot{\vect{q}}$, forming $T$ and $V$, and applying~\eqref{eq:euler-lagrange}. Collect the result as
+\begin{equation}
+	M(\vect{q})\ddot{\vect{q}} + \vect{h}(\vect{q},\dot{\vect{q}})
+	= \vect{Q}_{\mathrm{ext}},
+	\label{eq:lagrange-mass-matrix-form}
+\end{equation}
+where $M$ multiplies the accelerations and $\vect{h}$ contains velocity-coupling and potential-energy terms. Here $\vect{Q}_{\mathrm{ext}}$ denotes applied nonconservative generalized forces, such as actuator torques; gravity is included through $V$ and therefore appears in $\vect{h}$.
+
+\subsection{Positions, velocities, and energy}
+
+The mass positions follow directly from the angle convention:
+\begin{equation}
+	\begin{aligned}
+		x_1 &= l_1\sin\theta_1, & y_1 &= -l_1\cos\theta_1,\\
+		x_2 &= x_1+l_2\sin\theta_2, & y_2 &= y_1-l_2\cos\theta_2.
+	\end{aligned}
+	\label{eq:double-pendulum-positions}
+\end{equation}
+Differentiating with respect to time gives the Cartesian velocities:
+\begin{equation}
+	\begin{aligned}
+		\dot x_1 &= l_1\cos\theta_1\dot\theta_1,
+		&\dot y_1 &= l_1\sin\theta_1\dot\theta_1,\\
+		\dot x_2 &= \dot x_1+l_2\cos\theta_2\dot\theta_2,
+		&\dot y_2 &= \dot y_1+l_2\sin\theta_2\dot\theta_2.
+	\end{aligned}
+	\label{eq:double-pendulum-velocities}
+\end{equation}
+For clarity, define $\vect v_i=[\dot x_i,\dot y_i]^T$ and $\delta=\theta_1-\theta_2$. Squaring the first velocity gives
+\begin{equation}
+\dot x_1^2+\dot y_1^2
+=l_1^2(\cos^2\theta_1+\sin^2\theta_1)\dot\theta_1^2
+=l_1^2\dot\theta_1^2.
+\label{eq:double-pendulum-speed-one}
+\end{equation}
+For the second mass, use $\vect v_2=\vect v_1+l_2[\cos\theta_2,\sin\theta_2]^T\dot\theta_2$. Expanding the dot product separates the two individual speeds from their coupling:
+\begin{equation}
+\begin{aligned}
+\vect v_2\cdot\vect v_2
+&=\vect v_1\cdot\vect v_1+l_2^2\dot\theta_2^2
++2l_2\dot\theta_2\left(\dot x_1\cos\theta_2+\dot y_1\sin\theta_2\right)\\
+&=l_1^2\dot\theta_1^2+l_2^2\dot\theta_2^2
++2l_1l_2\dot\theta_1\dot\theta_2\cos(\theta_1-\theta_2),
+\end{aligned}
+\label{eq:double-pendulum-speed-two}
+\end{equation}
+The last equality follows from $\cos\theta_1\cos\theta_2+\sin\theta_1\sin\theta_2=\cos(\theta_1-\theta_2)$. Substituting~\eqref{eq:double-pendulum-speed-one}--\eqref{eq:double-pendulum-speed-two} into $T=\tfrac12m_1\vect v_1\cdot\vect v_1+\tfrac12m_2\vect v_2\cdot\vect v_2$ gives
+\begin{equation}
+	T = \frac12(m_1+m_2)l_1^2\dot\theta_1^2
+		+ \frac12m_2l_2^2\dot\theta_2^2
+		+ m_2l_1l_2\dot\theta_1\dot\theta_2\cos(\theta_1-\theta_2),
+	\label{eq:double-pendulum-kinetic-energy}
+\end{equation}
+\begin{equation}
+	V = -(m_1+m_2)gl_1\cos\theta_1 - m_2gl_2\cos\theta_2,
+	\qquad L=T-V.
+	\label{eq:double-pendulum-potential-lagrangian}
+\end{equation}
+
+\subsection{Euler--Lagrange residual and equation extraction}
+
+For symbolic derivation, define the left-hand-side residual vector
+\begin{equation}
+	\vect{E} = \frac{d}{dt}\left(\frac{\partial L}{\partial\dot{\vect{q}}}\right)
+		- \frac{\partial L}{\partial\vect{q}},
+	\qquad \vect{E}=\vect{Q}_{\mathrm{ext}}.
+	\label{eq:double-pendulum-el-residual}
+\end{equation}
+	To see what is being differentiated, first compute the generalized momenta and the coordinate derivatives of $L$:
+	\begin{equation}
+	\begin{aligned}
+	\frac{\partial L}{\partial\dot\theta_1}
+	&=(m_1+m_2)l_1^2\dot\theta_1
+	+m_2l_1l_2\cos\delta\,\dot\theta_2,\\
+	\frac{\partial L}{\partial\dot\theta_2}
+	&=m_2l_2^2\dot\theta_2
+	+m_2l_1l_2\cos\delta\,\dot\theta_1,\\
+	\frac{\partial L}{\partial\theta_1}
+	&=-m_2l_1l_2\dot\theta_1\dot\theta_2\sin\delta
+	-(m_1+m_2)gl_1\sin\theta_1,\\
+	\frac{\partial L}{\partial\theta_2}
+	&=m_2l_1l_2\dot\theta_1\dot\theta_2\sin\delta
+	-m_2gl_2\sin\theta_2.
+	\end{aligned}
+	\label{eq:double-pendulum-lagrangian-partials}
+	\end{equation}
+	Because $\dot\delta=\dot\theta_1-\dot\theta_2$, apply the product rule to each momentum:
+	\begin{equation}
+	\begin{aligned}
+	\frac{d}{dt}\frac{\partial L}{\partial\dot\theta_1}
+	&=(m_1+m_2)l_1^2\ddot\theta_1
+	+m_2l_1l_2\left[\ddot\theta_2\cos\delta
+	-\dot\theta_2\sin\delta(\dot\theta_1-\dot\theta_2)\right],\\
+	\frac{d}{dt}\frac{\partial L}{\partial\dot\theta_2}
+	&=m_2l_2^2\ddot\theta_2
+	+m_2l_1l_2\left[\ddot\theta_1\cos\delta
+	-\dot\theta_1\sin\delta(\dot\theta_1-\dot\theta_2)\right].
+	\end{aligned}
+	\label{eq:double-pendulum-momentum-rates}
+	\end{equation}
+	Now subtract the coordinate derivatives in~\eqref{eq:double-pendulum-lagrangian-partials}. In the first residual the mixed terms $-\dot\theta_1\dot\theta_2\sin\delta$ and $+\dot\theta_1\dot\theta_2\sin\delta$ cancel, leaving $+\dot\theta_2^2\sin\delta$; in the second they cancel, leaving $-\dot\theta_1^2\sin\delta$. Thus the two scalar equations are
+	\begin{equation}
+	\begin{aligned}
+	E_1={}&(m_1+m_2)l_1^2\ddot\theta_1
+	+m_2l_1l_2\cos\delta\,\ddot\theta_2
+	+m_2l_1l_2\sin\delta\,\dot\theta_2^2
+	+(m_1+m_2)gl_1\sin\theta_1=\tau_1,\\
+	E_2={}&m_2l_1l_2\cos\delta\,\ddot\theta_1
+	+m_2l_2^2\ddot\theta_2
+	-m_2l_1l_2\sin\delta\,\dot\theta_1^2
+	+m_2gl_2\sin\theta_2=\tau_2.
+	\end{aligned}
+	\label{eq:double-pendulum-expanded-residuals}
+	\end{equation}
+	The time derivatives are evaluated by the chain rule, treating $\vect{q}$, $\dot{\vect{q}}$, and $\ddot{\vect{q}}$ as symbolic variables. Because $\vect{E}$ is affine in $\ddot{\vect{q}}$, extract
+\begin{equation}
+	M(\vect{q}) = \frac{\partial\vect{E}}{\partial\ddot{\vect{q}}},
+	\qquad
+	\vect{h} = \vect{E} - M\ddot{\vect{q}}.
+	\label{eq:double-pendulum-symbolic-extraction}
+\end{equation}
+Then verify symbolically that $\vect{E}-(M\ddot{\vect{q}}+\vect{h})=\vect{0}$. In the notebook, SymPy performs these differentiations and simplifications while retaining $m_1,m_2,l_1,l_2,g$ as symbols. This makes sign or algebra errors easier to localize before parameter values are substituted.
+
+Let $\delta=\theta_1-\theta_2$. The resulting equations are
+\begin{equation}
+	\begin{bmatrix}
+		(m_1+m_2)l_1^2 & m_2l_1l_2\cos\delta\\
+		m_2l_1l_2\cos\delta & m_2l_2^2
+	\end{bmatrix}
+	\begin{bmatrix}\ddot\theta_1\\\ddot\theta_2\end{bmatrix}
+	+
+	\begin{bmatrix}
+		m_2l_1l_2\sin\delta\,\dot\theta_2^2+(m_1+m_2)gl_1\sin\theta_1\\
+		-m_2l_1l_2\sin\delta\,\dot\theta_1^2+m_2gl_2\sin\theta_2
+	\end{bmatrix}
+	=
+	\begin{bmatrix}\tau_1\\\tau_2\end{bmatrix}.
+	\label{eq:double-pendulum-eom}
+\end{equation}
+The leading matrix is the configuration-dependent mass matrix; the remaining vector contains velocity-coupling and gravity terms. The unforced case used below sets $\tau_1=\tau_2=0$. The symbolic notebook verifies that its extracted matrix and remainder agree with~\eqref{eq:double-pendulum-eom}.
+
+The torque components are positive in the directions of increasing $\theta_1$ and $\theta_2$; because these angles increase clockwise from downward vertical, this fixes the sign of any later actuator model. In the present example both are zero. The determinant of the mass matrix is
+\begin{equation}
+\det M
+=m_2l_1^2l_2^2\left[(m_1+m_2)-m_2\cos^2\delta\right]
+=m_2l_1^2l_2^2\left(m_1+m_2\sin^2\delta\right)>0,
+\label{eq:double-pendulum-mass-determinant}
+\end{equation}
+for positive masses and nonzero rod lengths. Therefore this model's acceleration solve is nonsingular at every configuration; this does not imply that every output-velocity inverse problem is nonsingular, as the tip Jacobian can still lose rank at collinear poses.
+
+\section{Preparing the first-order ODE}
+
+At each state, solve the linear system
+\begin{equation}
+	M(\vect{q})\ddot{\vect{q}}
+		= \vect{Q}_{\mathrm{ext}}-\vect{h}(\vect{q},\dot{\vect{q}})
+	\label{eq:double-pendulum-acceleration-solve}
+\end{equation}
+for $\ddot{\vect{q}}$; do not explicitly form $M^{-1}$. Introduce the first-order state
+\begin{equation}
+	\vect{y}=[\theta_1,\theta_2,\dot\theta_1,\dot\theta_2]^T,
+	\qquad
+	\dot{\vect{y}}=[\dot\theta_1,\dot\theta_2,\ddot\theta_1,\ddot\theta_2]^T.
+	\label{eq:double-pendulum-first-order-state}
+\end{equation}
+The ODE right-hand side therefore has four entries: the two angular velocities followed by the two accelerations returned by~\eqref{eq:double-pendulum-acceleration-solve}.
+
+The evaluation order at one solver call is:
+\begin{enumerate}
+\item Read $\theta_1,\theta_2,\dot\theta_1,\dot\theta_2$ from the current state $\vect y$.
+\item Evaluate $M(\vect q)$ and $\vect h(\vect q,\dot{\vect q})$ using the current angles and angular velocities.
+\item Solve $M\ddot{\vect q}=\vect Q_{\mathrm{ext}}-\vect h$ as a linear system for the two angular accelerations. Do not form $M^{-1}$ explicitly.
+\item Return $[\dot\theta_1,\dot\theta_2,\ddot\theta_1,\ddot\theta_2]^T$ as $\dot{\vect y}$.
+\end{enumerate}
+This separation matters: the state contains positions and velocities, while the accelerations are algebraic outputs of the instantaneous dynamics solve.
+
+\subsection{Language-neutral pseudocode}
+
+\begin{enumerate}
+	\item Define symbolic coordinates, velocities, accelerations, physical parameters, and the angle convention.
+	\item Derive mass positions and velocities; construct $T$, $V$, and $L=T-V$.
+	\item Form the Euler--Lagrange residual $\vect{E}$ and extract $M$ and $\vect{h}$.
+	\item Simplify and assert the symbolic decomposition residual is zero; compare the result with the displayed equations.
+	\item Substitute the selected SI parameter values and create numerical evaluators for $M$ and $\vect{h}$.
+	\item Given $(t,\vect{y})$, split $\vect{y}$ into $\vect{q}$ and $\dot{\vect{q}}$, solve for $\ddot{\vect{q}}$, and return $\dot{\vect{y}}$.
+	\item Integrate from the specified initial state; check solver status; compute energy error; and make the requested plots.
+\end{enumerate}
+
+\section{Numerical example and energy check}
+
+The validation notebook uses $m_1=1.2\,\mathrm{kg}$, $m_2=0.8\,\mathrm{kg}$, $l_1=1.0\,\mathrm{m}$, $l_2=0.8\,\mathrm{m}$, and $g=9.81\,\mathrm{m\,s^{-2}}$. The initial state is $[1.1,-0.6,0,0]^T$, with angles in radians and zero initial angular velocities. It integrates the unforced system on $0\le t\le10\,\mathrm{s}$ using adaptive RK45, relative tolerance $10^{-9}$, absolute tolerance $10^{-11}$, maximum step $0.01\,\mathrm{s}$, and 2,001 requested output times. Those times specify where the solver stores or reports values; they do not force its internal adaptive steps to occur at those times. These are example settings, not universal defaults.
+
+Since no torque or dissipation is applied, $E=T+V$ is conserved in the continuous model. At each saved state, evaluate
+\begin{equation}
+E(t)=T(\vect q(t),\dot{\vect q}(t))+V(\vect q(t)),
+\qquad
+\varepsilon_E(t)=\frac{E(t)-E(0)}{\max(1\,\mathrm{J},|E(0)|)}.
+\label{eq:double-pendulum-energy-error}
+\end{equation}
+The validated numerical run has maximum absolute scaled energy error $\max_t|\varepsilon_E(t)|=9.373\times10^{-9}$. This checks numerical consistency for this run; it is not proof that the idealized model represents a physical apparatus. Small energy error also does not guarantee small long-time phase or trajectory error in a nonlinear system. Figure~\ref{fig:double-pendulum-response} plots both angles and the signed scaled energy error.
+As a tolerance and step-size sensitivity check, the notebook repeats the same initial-value problem with $\mathrm{rtol}=10^{-10}$, $\mathrm{atol}=10^{-12}$, and maximum internal step $0.005\,\mathrm{s}$. This run uses 13,136 right-hand-side evaluations, reduces the maximum scaled energy error to $4.494\times10^{-10}$, and has maximum sampled state difference $4.736\times10^{-8}$ from the baseline. This single refinement supports numerical sensitivity assessment for this run; it is not a convergence proof or a long-time phase-error bound.
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=0.82\textwidth]{double_pendulum_response.png}
+	\caption{Angles and signed scaled energy error for the 10-second unforced double-pendulum run. The figure is generated by the validation notebook using the parameters and solver settings stated in the text.}
+	\label{fig:double-pendulum-response}
+\end{figure}
+
+	\section{From the open-chain example to the five-link closed chain}
+
+	The double pendulum above has two minimal coordinates: every $(\theta_1,\theta_2)$ gives a geometrically possible pose. The five-link mechanism is different. Chapter~2 defined its perimeter loop and grounded link; Chapter~3 introduced Cartesian body coordinates and attachment-point kinematics. Here those ingredients are combined from pin geometry through the first-order simulation equation. The derivation follows the canonical notebook \texttt{constrained\_five\_link\_dynamics.ipynb}; Chapters~5--9 revisit constraints, initialization, and drift control in detail.
+
+	\subsection{Coordinates, pin locations, and position closure}
+
+	For body $i$, let $\vect p_i=[x_i,y_i]^T$ be its center-of-mass position and let $\theta_i$ be its counterclockwise orientation from world $x$. Stack the five poses in body order:
+	\begin{equation}
+	\vect q=[x_1,y_1,\theta_1,x_2,y_2,\theta_2,\ldots,x_5,y_5,\theta_5]^T\in\mathbb R^{15}.
+	\label{eq:five-link-q-ch4}
+	\end{equation}
+	The symbolic derivation therefore has 15 generalized coordinates and retains the five link lengths $L_1,\ldots,L_5$ as symbols. The notebook's fixed reference pose for link~4 is initialized from its configured numerical pin geometry, then rationalized as a constant in the symbolic fixed-pose residual; the link lengths themselves remain symbolic. Numerical link lengths are substituted for the later cross-check and simulation.
+	The rotation matrix and quarter-turn matrix are
+	\begin{equation}
+	A(\theta)=\begin{bmatrix}\cos\theta&-\sin\theta\\\sin\theta&\cos\theta\end{bmatrix},
+	\qquad
+	S=\begin{bmatrix}0&-1\\1&0\end{bmatrix}.
+	\label{eq:five-link-rotation-ch4}
+	\end{equation}
+	Every link's center of mass is at the midpoint of its pin-to-pin segment. Thus the two local pin offsets of link $i$ are $-\tfrac12L_i[1,0]^T$ and $+\tfrac12L_i[1,0]^T$. In cyclic order the pins are $P_{12},P_{23},P_{34},P_{45},P_{51}$. For example,
+	\begin{equation}
+	\begin{aligned}
+	\vect r_{12}^{(1)}&=\vect p_1+A(\theta_1)\tfrac{L_1}{2}\vect e_x,
+	&\vect r_{12}^{(2)}&=\vect p_2-A(\theta_2)\tfrac{L_2}{2}\vect e_x,\\
+	\vect r_{51}^{(5)}&=\vect p_5+A(\theta_5)\tfrac{L_5}{2}\vect e_x,
+	&\vect r_{51}^{(1)}&=\vect p_1-A(\theta_1)\tfrac{L_1}{2}\vect e_x,
+	\end{aligned}
+	\qquad \vect e_x=[1,0]^T.
+	\label{eq:five-link-pin-examples-ch4}
+	\end{equation}
+	The remaining three pairs follow the same right-end-of-first-link, left-end-of-next-link rule. For every pin, closure requires its two attachment points to coincide. Define each two-component gap as first-listed attachment minus second-listed attachment and stack the five gaps, followed by the grounded-pose residual:
+	\begin{equation}
+	\vect\Phi(\vect q)=
+	\begin{bmatrix}
+	\vect r_{12}^{(1)}-\vect r_{12}^{(2)}\\
+	\vect r_{23}^{(2)}-\vect r_{23}^{(3)}\\
+	\vect r_{34}^{(3)}-\vect r_{34}^{(4)}\\
+	\vect r_{45}^{(4)}-\vect r_{45}^{(5)}\\
+	\vect r_{51}^{(5)}-\vect r_{51}^{(1)}\\
+	\vect p_4-\vect p_4^{\,0}\\
+	\theta_4-\theta_4^{0}
+	\end{bmatrix}=\vect 0.
+	\label{eq:five-link-phi-ch4}
+	\end{equation}
+	There are ten pin-gap components and three fixed-pose components. The notebook sets $\theta_4^0=0$ so link~4 is horizontal; $\vect p_4^{\,0}$ is its chosen reference center. This gives 13 written scalar equations, not by itself a proof that all 13 are independent. At the notebook's modeled pose, the Jacobian rank is 13 and the local mobility is $15-13=2$.
+
+	Expanding the five point differences gives the notebook's complete 13-entry symbolic residual. Here $c_i=\cos\theta_i$ and $s_i=\sin\theta_i$:
+	\begin{equation}
+	\vect\Phi(\vect q)=
+	\begin{bmatrix}
+	x_1-x_2+\frac12L_1c_1+\frac12L_2c_2\\
+	y_1-y_2+\frac12L_1s_1+\frac12L_2s_2\\
+	x_2-x_3+\frac12L_2c_2+\frac12L_3c_3\\
+	y_2-y_3+\frac12L_2s_2+\frac12L_3s_3\\
+	x_3-x_4+\frac12L_3c_3+\frac12L_4c_4\\
+	y_3-y_4+\frac12L_3s_3+\frac12L_4s_4\\
+	x_4-x_5+\frac12L_4c_4+\frac12L_5c_5\\
+	y_4-y_5+\frac12L_4s_4+\frac12L_5s_5\\
+	x_5-x_1+\frac12L_5c_5+\frac12L_1c_1\\
+	y_5-y_1+\frac12L_5s_5+\frac12L_1s_1\\
+	x_4-x_4^0\\
+	y_4-y_4^0\\
+	\theta_4-\theta_4^0
+	\end{bmatrix}=\vect0.
+	\label{eq:five-link-expanded-phi-ch4}
+	\end{equation}
+	In the configured notebook example, $(x_4^0,y_4^0,\theta_4^0)=(0,-0.4\,\mathrm m,0)$, so the last three entries specialize to $x_4$, $y_4+0.4\,\mathrm m$, and $\theta_4$. The symbolic link lengths remain $L_1,\ldots,L_5$; those example reference coordinates are not link-length substitutions.
+
+	The full $13\times15$ Jacobian from the notebook can be written sparsely in $3$-column body blocks. Define the endpoint Jacobians for a right and left pin of body $i$ by
+	\begin{equation}
+	B_i^+=\begin{bmatrix}1&0&-\frac12L_i s_i\\0&1&\frac12L_i c_i\end{bmatrix},
+	\qquad
+	B_i^-=\begin{bmatrix}1&0&\frac12L_i s_i\\0&1&-\frac12L_i c_i\end{bmatrix}.
+	\label{eq:five-link-endpoint-jacobians-ch4}
+	\end{equation}
+	The first ten rows are the ordered pin residual Jacobians, and the last three rows ground link~4:
+	\begin{equation}
+	J=\begin{bmatrix}
+	B_1^+&-B_2^-&0&0&0\\
+	0&B_2^+&-B_3^-&0&0\\
+	0&0&B_3^+&-B_4^-&0\\
+	0&0&0&B_4^+&-B_5^-\\
+	-B_1^-&0&0&0&B_5^+\\
+	0&0&0&I_3&0
+	\end{bmatrix}\in\mathbb R^{13\times15}.
+	\label{eq:five-link-expanded-jacobian-ch4}
+	\end{equation}
+	Each displayed pin row is a two-row block; thus the five pin blocks contribute ten rows and the grounding block contributes three. This block form is the same sparse matrix as $\partial\vect\Phi/\partial\vect q$, but exposes which bodies each pin couples.
+
+	\subsection{Differentiate closure to obtain velocity and acceleration conditions}
+
+	For a body-fixed point $\vect s_i$ on body $i$, its world position is $\vect r_i=\vect p_i+A(\theta_i)\vect s_i$. Differentiating $A$ gives $\partial A/\partial\theta=SA$, so
+	\begin{equation}
+	\dot{\vect r}_i=\dot{\vect p}_i+\dot\theta_iSA(\theta_i)\vect s_i,
+	\qquad
+	\ddot{\vect r}_i=\ddot{\vect p}_i+\ddot\theta_iSA\vect s_i-\dot\theta_i^2A\vect s_i.
+	\label{eq:five-link-point-kinematics-ch4}
+	\end{equation}
+	The last term is centripetal acceleration of the rotating offset. For one pin residual $\vect r_a-\vect r_b$, its Jacobian has the body blocks
+	\begin{equation}
+	J_a=\begin{bmatrix}I_2&SA(\theta_a)\vect s_a\end{bmatrix},
+	\qquad
+	J_b=-\begin{bmatrix}I_2&SA(\theta_b)\vect s_b\end{bmatrix},
+	\label{eq:five-link-pin-jacobian-blocks-ch4}
+	\end{equation}
+	with zeros in all other body columns. The three fixed-pose rows select $(x_4,y_4,\theta_4)$, so their Jacobian block is $I_3$. Stacking all rows gives
+	\begin{equation}
+	J(\vect q)=\frac{\partial\vect\Phi}{\partial\vect q}\in\mathbb R^{13\times15},
+	\qquad
+	\dot{\vect\Phi}=J\dot{\vect q}=\vect 0.
+	\label{eq:five-link-velocity-constraint-ch4}
+	\end{equation}
+	Differentiate once more:
+	\begin{equation}
+	J\ddot{\vect q}+\dot J\dot{\vect q}=\vect 0.
+	\label{eq:five-link-acceleration-constraint-ch4}
+	\end{equation}
+	Because fixed-pose rows are linear, their contribution to $\dot J\dot{\vect q}$ is zero. For a pin gap, only the rotating attachment offsets contribute curvature:
+	\begin{equation}
+	\vect\gamma_{ab}=(\dot J\dot{\vect q})_{ab}
+	=-\dot\theta_a^2A(\theta_a)\vect s_a
+	+\dot\theta_b^2A(\theta_b)\vect s_b.
+	\label{eq:five-link-jdot-qdot-pin-ch4}
+	\end{equation}
+	The signs match the residual convention: the first attachment enters positively and the second negatively. This acceleration bias is determined by geometry and velocity; it is not a gravity or applied-force term.
+
+	\subsection{Energies and ideal multiplier equations}
+
+	With each origin at a body center of mass, the kinetic and gravitational potential energies are
+	\begin{equation}
+	T=\frac12\sum_{i=1}^{5}\left[m_i(\dot x_i^2+\dot y_i^2)+I_i\dot\theta_i^2\right]
+	=\frac12\dot{\vect q}^{T}M\dot{\vect q},
+	\qquad
+	V=\sum_{i=1}^{5}m_igy_i,
+	\label{eq:five-link-energies-ch4}
+	\end{equation}
+	where
+	\begin{equation}
+	M=\operatorname{diag}(m_1,m_1,I_1,\ldots,m_5,m_5,I_5),
+	\qquad
+	\vect Q_g=-\frac{\partial V}{\partial\vect q}.
+	\label{eq:five-link-mass-gravity-ch4}
+	\end{equation}
+	The symbolic notebook's diagonal mass matrix and expanded energies are therefore
+	\begin{equation}
+	M=\operatorname{diag}(m_1,m_1,I_1,m_2,m_2,I_2,m_3,m_3,I_3,m_4,m_4,I_4,m_5,m_5,I_5),
+	\label{eq:five-link-expanded-mass-ch4}
+	\end{equation}
+	\begin{equation}
+	\begin{aligned}
+	T={}&\frac12\sum_{i=1}^{5}I_i\dot\theta_i^2
+	+\frac12m_1(\dot x_1^2+\dot y_1^2)+\frac12m_2(\dot x_2^2+\dot y_2^2)\\
+	&+\frac12m_3(\dot x_3^2+\dot y_3^2)+\frac12m_4(\dot x_4^2+\dot y_4^2)
+	+\frac12m_5(\dot x_5^2+\dot y_5^2),\\
+	V={}&g(m_1y_1+m_2y_2+m_3y_3+m_4y_4+m_5y_5).
+	\end{aligned}
+	\label{eq:five-link-expanded-energies-ch4}
+	\end{equation}
+	Differentiating $V$ with respect to the coordinate order in~\eqref{eq:five-link-q-ch4} gives the full generalized gravity vector
+	\begin{equation}
+	\vect Q_g=\begin{bmatrix}
+	0\\-gm_1\\0\\0\\-gm_2\\0\\0\\-gm_3\\0\\0\\-gm_4\\0\\0\\-gm_5\\0
+	\end{bmatrix}.
+	\label{eq:five-link-expanded-gravity-ch4}
+	\end{equation}
+	Since these are center-of-mass coordinates and the bodies are rigid with fixed mass properties, $M$ is constant and there is no velocity-dependent inertial bias. With no non-gravitational loads, $\vect Q_{\mathrm{total}}=\vect Q_g$. Ideal pin and support reactions do virtual work only in directions prohibited by the constraints; in redundant coordinates represent their generalized force by $J^T\vect\lambda$. Lagrange's equations become
+	\begin{equation}
+	M\ddot{\vect q}+J^T\vect\lambda=\vect Q_{\mathrm{total}},
+	\qquad
+	J\ddot{\vect q}=-\vect\gamma.
+	\label{eq:five-link-ideal-equations-ch4}
+	\end{equation}
+	The first line is 15 force-balance equations. The second line supplies 13 acceleration-compatibility equations. Together they determine 15 accelerations and 13 multipliers:
+	\begin{equation}
+	\begin{bmatrix}M&J^T\\J&0_{13\times13}\end{bmatrix}
+	\begin{bmatrix}\ddot{\vect q}\\\vect\lambda\end{bmatrix}
+	=\begin{bmatrix}\vect Q_{\mathrm{total}}\\-\vect\gamma\end{bmatrix}.
+	\label{eq:five-link-kkt-ch4}
+	\end{equation}
+	This is a $28\times28$ saddle-point solve. The lower rows are ideal acceleration constraints; no numerical stabilization gains have been included. Multiplier signs depend on the chosen gap order, but the physical reaction is unchanged when the residual and multiplier conventions are transformed consistently.
+
+	\subsection{From the KKT solve to an ODE, and why closure drifts}
+
+	If the state is $\vect y=[\vect q^T,\dot{\vect q}^{T}]^T\in\mathbb R^{30}$, solve~\eqref{eq:five-link-kkt-ch4} at each right-hand-side evaluation and return
+	\begin{equation}
+	\dot{\vect y}=\begin{bmatrix}\dot{\vect q}\\\ddot{\vect q}\end{bmatrix}.
+	\label{eq:five-link-ode-ch4}
+	\end{equation}
+	This is an ODE reformulation of the acceleration-level constrained problem, not a direct integration of all position-level algebraic equations by a DAE solver. In exact arithmetic, if initially $\vect\Phi=\vect0$ and $J\dot{\vect q}=\vect0$, the ideal acceleration equation keeps their time derivatives zero. A standard ODE stepper, however, controls estimated local state error; it does not project the accepted state back onto either constraint manifold. Truncation and roundoff errors can therefore leave nonzero $\vect\Phi$ or $J\dot{\vect q}$. The ideal acceleration equation supplies no restoring feedback for those position/velocity errors: an off-manifold state is not automatically drawn back to the correct closed configuration. The errors may persist or accumulate, and the resulting pose can become physically inconsistent even while the ODE solver reports success.
+
+	Thus “ODE divergence” here should not be read as an inevitable blow-up of every trajectory. The common failure is constraint drift or loss of accuracy, not necessarily unbounded coordinates. Small ODE tolerances alone do not guarantee small closure residuals, especially when the residual components have different scales or the Jacobian is poorly conditioned near a singular pose. A dedicated DAE method, position/velocity projection, or stabilization such as Baumgarte feedback can address drift in different ways; each has its own accuracy, conditioning, and stability tradeoffs. The notebook uses one initial projection and a Baumgarte-modified acceleration solve, then tracks pin closure, grounded translation and angle errors, and the corresponding velocity residuals separately throughout the trajectory. Chapters~8 and~9 treat consistent initialization and drift control separately.
+
+	For the notebook's baseline ten-second run, the maximum pin-position and pin-velocity residuals over saved states are $1.108\times10^{-9}\,\mathrm m$ and $1.247\times10^{-7}\,\mathrm{m\,s^{-1}}$. Grounded-link translation and angle errors are at most $1.333\times10^{-17}\,\mathrm m$ and $3.031\times10^{-19}\,\mathrm{rad}$; its translation-rate and angular-rate residuals are at most $1.092\times10^{-15}\,\mathrm{m\,s^{-1}}$ and $1.648\times10^{-17}\,\mathrm{s^{-1}}$. These are outcomes for the stated geometry, gains, solver, and tolerances, not universal thresholds or a proof of physical validity.
+
+\section{Summary and transition}
+
+	The chapter has now followed two models through dynamics construction. The double pendulum shows the compact minimal-coordinate Lagrange route; the five-link model shows how Cartesian body coordinates, pin closure, differentiated constraints, and ideal reaction multipliers combine in a KKT acceleration solve. The latter can be supplied to an ODE integrator, but ordinary ODE error control alone does not preserve algebraic closure. Chapters~5--9 develop the constraint equations, consistent initialization, and drift-control choices in detail.
+
+\ifSubfilesClassLoaded{\backmatter\bookbibliography}{}
+\end{document}

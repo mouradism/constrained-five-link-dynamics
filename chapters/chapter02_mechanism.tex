@@ -1,0 +1,92 @@
+\documentclass[../main.tex]{subfiles}
+\begin{document}
+\chapter{Mechanism and Modeling Assumptions}
+\label{chap:mechanism}
+
+\section{State of the Art}
+Multibody models represent a mechanism as interacting rigid or deformable bodies connected by joints and loads. Modeling choices determine which physical effects the equations can represent and which numerical methods are needed \cite{shabana2013dynamics}. This focused review uses a foundational multibody text to frame rigid-body and joint idealizations. It does not survey application-specific contact or compliant-joint models. Bibliographic scope checked 2026-10-07.
+
+\section{Open chains and closed chains}
+
+\section{From equation choice to physical model}
+
+Chapter~1 compared ways to express dynamics once a system has been selected. The next decision is the model itself: which bodies exist, how they are connected, what is held fixed, and which physical effects are retained. The book uses two systems for different teaching purposes. The double pendulum is an open-chain example whose two angles satisfy its rod geometry by construction. It lets Chapter~4 develop energy-based equations without loop-closure reactions. The main case study in this chapter is instead a closed chain: five links form a perimeter loop, so the joint geometry must remain closed throughout motion. It is this second model, not the double pendulum, that motivates the constrained-coordinate treatment in the later chapters.
+
+\section{Five links, five pins, one loop}
+
+Number the planar links $1$ through $5$ around the perimeter. Pin $P_{ij}$ joins links $i$ and $j$ at one point on each link; the complete connection list is
+\begin{equation}
+\mathcal{E}=\{P_{12},P_{23},P_{34},P_{45},P_{51}\}.
+\label{eq:five-link-topology}
+\end{equation}
+Thus links $1$--$2$--$3$--$4$--$5$--$1$ make one closed loop. Link~4 is attached to ground and held horizontal. Its support is not an additional moving link or one of the five revolute pins: it fixes link~4's planar pose. There is no diagonal pin. Adding one would define a different mechanism and, for the modeled geometry, could remove the intended mobility.
+
+Figure~\ref{fig:five-link-model-configurations} shows the labeled body arrangement at initialization and a later simulated configuration. It helps identify the loop and the grounded member; it is a geometry illustration, not evidence by itself that the equations or trajectory are correct.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.96\textwidth]{five_link_configurations.png}
+\caption{Five-link perimeter mechanism at initialization and at $t=10\,\mathrm{s}$. Colored segments identify links 1--5, black squares mark the revolute pins, and the cross marks the fixed center of mass of grounded link~4. The second panel illustrates a computed configuration; trajectory correctness is assessed with residual and sensitivity checks in later chapters.}
+\label{fig:five-link-model-configurations}
+\end{figure}
+
+The pin inventory makes the loop topology explicit:
+\begin{center}
+\small
+\begin{tabular}{@{}ccl@{}}
+	oprule
+Pin & Connected links & Role in the perimeter loop \\
+\midrule
+$P_{12}$ & 1 and 2 & Connects the first and second links \\
+$P_{23}$ & 2 and 3 & Connects the second and third links \\
+$P_{34}$ & 3 and 4 & Connects the third link to ground link 4 \\
+$P_{45}$ & 4 and 5 & Connects ground link 4 to the fifth link \\
+$P_{51}$ & 5 and 1 & Closes the loop \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Bodies, joints, and loads}
+
+Each link is an ideal planar rigid body. Link $i$ has constant mass $m_i>0$, center of mass at the body-coordinate origin, and planar moment of inertia $I_i>0$ about that center. A pin transmits force between its connected links and enforces coincidence of the two attachment points, while allowing relative rotation; it transmits no ideal couple. Chapter~3 defines the body coordinates and maps those attachment points into world coordinates, and Chapter~5 turns the five pin connections into explicit loop-closure equations.
+
+Ground fixes the position and orientation of link~4. The reference orientation is chosen as zero, so the grounded link is horizontal with world $x$; its three pose conditions provide the physical support needed to remove free rigid translation and rotation. The support reactions needed to maintain this pose are internal to the model's constrained force balance, not prescribed external loads.
+
+The baseline external loading is gravity, with world $y$ positive upward. It acts downward on every link's center of mass; no actuator torque or other applied force is included in the five-link baseline. A driven or damped mechanism would need an explicitly defined force or torque model rather than an implicit change to the joint geometry.
+
+\section{Modeling contract and scope}
+
+The equations developed later apply to this specific idealization. Their assumptions and consequences are collected here so the reader can tell which claims belong to the model and which physical effects have been left out.
+
+\begin{center}
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.22\textwidth}>{\raggedright\arraybackslash}p{0.33\textwidth}>{\raggedright\arraybackslash}p{0.35\textwidth}@{}}
+	oprule
+Model choice & Included representation & Consequence or excluded effect \\
+\midrule
+Motion & Planar translation and rotation & Out-of-plane motion is not represented \\
+Bodies & Rigid links with fixed $m_i$ and $I_i$ & Flexibility and changing mass properties are excluded \\
+Pins & Ideal revolute joints & No friction, backlash, compliance, or transmitted couple \\
+Support & Link 4 fixed horizontally to ground & Support reactions are solved, not prescribed \\
+Loading & Gravity only in the baseline & No actuation, damping, impact, or contact forces \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+These omissions are scope boundaries, not claims that the effects are negligible in applications. Introducing contact, friction, compliance, flexibility, or actuation changes the force model, the constraints, or both, and requires new verification. The double-pendulum example has a different idealization: it uses point masses and massless rods as an open-chain teaching model, not the five-link rigid-body loop.
+
+\section{Mobility preview}
+
+The model inventory already signals why the five-link equations will be constrained. Five planar bodies have $5\times3=15$ Cartesian pose coordinates. Each of the five pins requires two scalar point-coincidence conditions, and fixing link~4 adds three pose conditions, for 13 written scalar equations. At the modeled configuration the constraint Jacobian has rank 13, so the local mobility is
+\begin{equation}
+n_{\mathrm{dof}}=15-\operatorname{rank}(J)=15-13=2.
+\label{eq:five-link-mobility}
+\end{equation}
+This is an orientation count, not the derivation of the constraints: equation count alone does not establish independence, and rank can change at singular configurations. Chapter~5 constructs the residual and evaluates its rank; Chapter~8 uses the resulting two degrees of freedom when preparing consistent initial motion.
+
+\section{Summary and transition}
+
+The book now has a physical contract for its main case study: five planar rigid links, five perimeter pins, link~4 fixed horizontally, and gravity as the only baseline load. The double pendulum remains a separate open-chain example for comparing dynamics formulations. Chapter~3 defines the Cartesian body coordinates and attachment-point kinematics; Chapter~5 will use them to derive the loop constraints rather than assuming closure from a diagram.
+
+\ifSubfilesClassLoaded{\backmatter\bookbibliography}{}
+\end{document}
